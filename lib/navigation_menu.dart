@@ -7,6 +7,7 @@ import 'package:social_media_app/utils/helpers/helper_fuctions.dart';
 import 'common/widgets/appbar/appbar.dart';
 import 'features/social_media/screens/chat/chat_home.dart';
 import 'features/social_media/screens/home/home.dart';
+import 'features/social_media/screens/profile/profile_page.dart';
 
 class Navigation extends StatefulWidget {
   const Navigation({super.key});
@@ -40,18 +41,7 @@ class _NavigationState extends State<Navigation> {
   Widget build(BuildContext context) {
     final dark = SMAHelperFunctions.isDarkMode(context);
     return Scaffold(
-        // appBar: AppBar(
-        //   automaticallyImplyLeading: false,
-        //     actions: [
-        //   IconButton(
-        //     onPressed: signUserOut,
-        //     icon: Icon(Icons.logout),
-        //   )
-        // ]),
-        appBar: SMAAppBar(
-          showBackArrow: false,
 
-        ),
         bottomNavigationBar: NavigationBar(
           height: 80,
           elevation: 0,
@@ -84,13 +74,3 @@ class StorePage extends StatelessWidget {
   }
 }
 
-class ProfilePage extends StatelessWidget {
-  const ProfilePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Text('Profile Page'),
-    );
-  }
-}

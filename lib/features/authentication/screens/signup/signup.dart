@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:social_media_app/common/widgets.login_signup/form_divider.dart';
 import 'package:social_media_app/common/widgets.login_signup/social_button.dart';
@@ -130,6 +131,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your phone number';
                         }
+                        else if(value.length < 10){
+                          return 'Atleast 10 digits required';
+                        } else if(value.length >10){
+                          return "Provide phone number without country code";
+                        }
                         return null;
                       },
                     ),
@@ -161,8 +167,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         //suffixIcon: Icon(Iconsax.eye_slash),
                       ),
                       validator: (value) {
-                        if (value != _passwordController.text || value!.isEmpty) {
+                        if ( value!.isEmpty) {
                           return 'Please confirm your password';
+                        } else if(value != _passwordController.text){
+                          return "Password doesn't matches";
                         }
                         return null;
                       },
@@ -232,13 +240,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
                               // Save user data to Firestore
                               await _fireStoreServices.createUser(
-                                firstName: _firstNameController.text,
-                                lastName: _lastNameController.text,
-                                username: _usernameController.text,
-                                email: _emailController.text,
-                                phoneNumber: _phoneNumberController.text,
-                                password: _passwordController.text,
+                                firstName: _firstNameController.text.trim().capitalizeFirst!.removeAllWhitespace,
+                                lastName: _lastNameController.text.trim().capitalizeFirst!.removeAllWhitespace,
+                                username: _usernameController.text.trim(),
+                                email: _emailController.text.trim().toLowerCase(),
+                                phoneNumber: _phoneNumberController.text.trim(),
+                                password: _passwordController.text.trim(),
                                 uid: _fireStoreServices.getCurrentUser()!.uid,
+                                following: [],
+                                followers: [],
+                                requested: [],
+                                requestToConfirm: [],
                               );
                               Navigator.pop(context);
 
@@ -269,6 +281,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 SnackBar(content: Text('Error creating user: $e')),
                               );
                             }
+                          } else{
+                            Navigator.pop(context);
                           }
                         },
                         child: const Text(SMATexts.createAccount),
