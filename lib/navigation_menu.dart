@@ -46,7 +46,7 @@ class _NavigationState extends State<Navigation> {
             NavigationDestination (icon: Icon (Iconsax.search_normal), label: 'Search'),
             NavigationDestination (icon: Icon (Iconsax.message), label: 'Chat'),
             NavigationDestination (icon: Icon (Iconsax.user), label: 'Profile'),
-          ],
+          ]
         ),
         body: _pages[_selectedIndex]
     );
