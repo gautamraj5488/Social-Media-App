@@ -19,6 +19,7 @@ class SMATexts {
   static const String lastName = "Last Name";
   static const String email = "E-Mail";
   static const String password = "Password";
+  static const String confirmPassword = "Confirm Password";
   static const String newPassword = "New Password";
   static const String userName = "Username";
   static const String phoneNumber = "Phone Number";

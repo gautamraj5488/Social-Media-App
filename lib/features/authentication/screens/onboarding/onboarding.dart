@@ -9,6 +9,7 @@ import '../../../../utils/constants/image_strings.dart';
 import '../../../../utils/constants/sizes.dart';
 import '../../../../utils/constants/text_strings.dart';
 import '../../../../utils/helpers/helper_fuctions.dart';
+import '../login/authpage.dart';
 import '../login/login.dart';
 
 class OnBoardingScreen extends StatefulWidget {
@@ -99,7 +100,7 @@ class _OnBoardingScreenState extends State<OnBoardingScreen> {
               onPressed: () {
                 _currentPage == 2
                     ? Navigator.push(context,
-                        MaterialPageRoute(builder: (context) => LoginScreen()))
+                        MaterialPageRoute(builder: (context) => AuthPage()))
                     : controller.nextPage(
                         duration: const Duration(milliseconds: 600),
                         curve: Curves.easeInOut);

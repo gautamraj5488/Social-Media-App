@@ -1,8 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:social_media_app/common/widgets.login_signup/form_divider.dart';
 import 'package:social_media_app/common/widgets.login_signup/social_button.dart';
 
+import '../../../../services/firestore.dart';
 import '../../../../utils/constants/colors.dart';
 import '../../../../utils/constants/sizes.dart';
 import '../../../../utils/constants/text_strings.dart';
@@ -16,6 +19,28 @@ class SignUpScreen extends StatefulWidget {
 }
 
 class _SignUpScreenState extends State<SignUpScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneNumberController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  void _clearForm() {
+    _formKey.currentState?.reset();
+    _firstNameController.clear();
+    _lastNameController.clear();
+    _emailController.clear();
+    _passwordController.clear();
+    _phoneNumberController.clear();
+    _usernameController.clear();
+    _confirmPasswordController.clear();
+  }
+
+  final FireStoreServices _fireStoreServices = FireStoreServices();
+
   @override
   Widget build(BuildContext context) {
     final dark = SMAHelperFunctions.isDarkMode(context);
@@ -23,66 +48,125 @@ class _SignUpScreenState extends State<SignUpScreen> {
       appBar: AppBar(),
       body: SingleChildScrollView(
         child: Padding(
-          padding: EdgeInsets.all(SMASizes.defaultSpace),
+          padding: const EdgeInsets.all(SMASizes.defaultSpace),
           child: Column(
             children: [
               Text(SMATexts.signupTitle,
                   style: Theme.of(context).textTheme.headlineMedium),
               const SizedBox(height: SMASizes.spaceBtwSections),
               Form(
+                key: _formKey,
                 child: Column(
                   children: [
                     Row(children: [
                       Expanded(
                         child: TextFormField(
+                          controller: _firstNameController,
                           expands: false,
                           decoration: const InputDecoration(
                               labelText: SMATexts.firstName,
                               prefixIcon: Icon(Iconsax.user)),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your first name';
+                            }
+                            return null;
+                          },
                         ),
                       ),
                       const SizedBox(width: SMASizes.spaceBtwInputFields),
                       Expanded(
                         child: TextFormField(
+                          controller: _lastNameController,
                           expands: false,
                           decoration: const InputDecoration(
                               labelText: SMATexts.lastName,
                               prefixIcon: Icon(Iconsax.user)),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Please enter your last name';
+                            }
+                            return null;
+                          },
                         ), // TextFormField
                       ),
                     ]),
                     const SizedBox(height: SMASizes.spaceBtwInputFields),
                     TextFormField(
+                      controller: _usernameController,
                       expands: false,
                       decoration: const InputDecoration(
                           labelText: SMATexts.userName,
                           prefixIcon: Icon(Iconsax.user_edit)),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a username';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: SMASizes.spaceBtwInputFields),
                     TextFormField(
+                      controller: _emailController,
                       decoration: const InputDecoration(
                           labelText: SMATexts.email,
                           prefixIcon: Icon(Iconsax.direct)),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your email';
+                        }
+                        return null;
+                      },
                     ), // TextFormField
                     const SizedBox(height: SMASizes.spaceBtwInputFields),
 
                     /// Phone Number
                     TextFormField(
+                      controller: _phoneNumberController,
                       decoration: const InputDecoration(
                           labelText: SMATexts.phoneNumber,
                           prefixIcon: Icon(Iconsax.call)),
-                    ), // TextFormField
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your phone number';
+                        }
+                        return null;
+                      },
+                    ),
                     const SizedBox(height: SMASizes.spaceBtwInputFields),
 
                     /// Password
                     TextFormField(
+                      controller: _passwordController,
                       obscureText: true,
                       decoration: const InputDecoration(
                         labelText: SMATexts.password,
                         prefixIcon: Icon(Iconsax.password_check),
-                        suffixIcon: Icon(Iconsax.eye_slash),
-                      ), // InputDecoration
-                    ), // TextFormField
+                        //suffixIcon: Icon(Iconsax.eye_slash),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a password';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: SMASizes.spaceBtwInputFields),
+                    TextFormField(
+                      controller: _confirmPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: SMATexts.confirmPassword,
+                        prefixIcon: Icon(Iconsax.password_check),
+                        //suffixIcon: Icon(Iconsax.eye_slash),
+                      ),
+                      validator: (value) {
+                        if (value != _passwordController.text || value!.isEmpty) {
+                          return 'Please confirm your password';
+                        }
+                        return null;
+                      },
+                    ),
                     const SizedBox(height: SMASizes.spaceBtwSections),
                     Row(children: [
                       SizedBox(
@@ -125,20 +209,94 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ]),
                       ),
                     ]),
-                    const SizedBox (height: SMASizes.spaceBtwSections),
-                    SizedBox(width: double.infinity,child: ElevatedButton(onPressed: (){},child: Text(SMATexts.createAccount),),),
+                    const SizedBox(height: SMASizes.spaceBtwSections),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () async {
+                          showDialog(
+                              context: context,
+                              builder: (context){
+                                return const Center(
+                                    child: CircularProgressIndicator()
+                                );
+                              }
+                          );
+                          if (_formKey.currentState?.validate() == true) {
+                            try {
+                              // Try to create the user with email and password
+                              await FirebaseAuth.instance.createUserWithEmailAndPassword(
+                                email: _emailController.text,
+                                password: _passwordController.text,
+                              );
 
+                              // Save user data to Firestore
+                              await _fireStoreServices.createUser(
+                                firstName: _firstNameController.text,
+                                lastName: _lastNameController.text,
+                                username: _usernameController.text,
+                                email: _emailController.text,
+                                phoneNumber: _phoneNumberController.text,
+                                password: _passwordController.text,
+                                uid: _fireStoreServices.getCurrentUser()!.uid,
+                              );
+                              Navigator.pop(context);
+
+                              // Show success message
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('User created successfully')),
+                              );
+                              _clearForm();
+                              Navigator.pop(context);
+
+                            } on FirebaseAuthException catch (e) {
+                              // Check if the email is already in use
+                              Navigator.pop(context);
+                              if (e.code == 'email-already-in-use') {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('The email is already in use by another account.')),
+                                );
+                              } else {
+                                // Show other FirebaseAuthException error messages
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Error: ${e.message}')),
+                                );
+                              }
+                            } catch (e) {
+                              // Handle any other errors
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error creating user: $e')),
+                              );
+                            }
+                          }
+                        },
+                        child: const Text(SMATexts.createAccount),
+                      ),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox (height: SMASizes.spaceBtwSections),
+              const SizedBox(height: SMASizes.spaceBtwSections),
               SMAFormDivider(dark: dark, text: SMATexts.orSignUpWith),
-              const SizedBox (height: SMASizes.spaceBtwSections),
-              SMASocialButton(),
+              const SizedBox(height: SMASizes.spaceBtwSections),
+              const SMASocialButton(),
             ],
           ),
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _usernameController.dispose();
+    _emailController.dispose();
+    _phoneNumberController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
   }
 }
