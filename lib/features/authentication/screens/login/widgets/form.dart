@@ -5,6 +5,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:social_media_app/navigation_menu.dart';
+import 'package:social_media_app/utils/device/device_utility.dart';
+import 'package:social_media_app/utils/helpers/helper_fuctions.dart';
 
 
 import '../../../../../utils/constants/sizes.dart';
@@ -21,8 +23,9 @@ class SMALoginForm extends StatefulWidget {
 }
 
 class _SMALoginFormState extends State<SMALoginForm> {
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  bool _passwordVisible = false;
   final _formKey = GlobalKey<FormState>();
 
 
@@ -30,16 +33,15 @@ class _SMALoginFormState extends State<SMALoginForm> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const Dialog(
-          child: Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+      builder: (context) {
+        return WillPopScope(
+          onWillPop: () async => false,
+          child: AlertDialog(
+            content: Row(
               children: [
-                CircularProgressIndicator(),
-                SizedBox(width: 16.0),
-                Text("Signing in..."),
+                Image.asset("assets/gifs/loading.gif"),
+                SizedBox(width: 20),
+                Text('Loading...'),
               ],
             ),
           ),
@@ -49,26 +51,37 @@ class _SMALoginFormState extends State<SMALoginForm> {
   }
 
   void _hideLoadingDialog() {
-    Navigator.of(context, rootNavigator: true).pop();
+    if (Navigator.canPop(context)) {
+      Navigator.of(context).pop();
+    }
   }
 
   void signUserIn() async {
     if (_formKey.currentState?.validate() != true) {
+      SMADeviceUtils.vibrate(Duration(milliseconds: 500));
       return;
     }
 
-    _showLoadingDialog();
+    bool isConnected = await SMADeviceUtils.hasInternetConnection();
+    if (!isConnected) {
+      SMAHelperFunctions.showSnackBar(context,"No internet connection");
+      SMADeviceUtils.vibrate(Duration(milliseconds: 500));
+      return;
+    }
+
+    //_showLoadingDialog();
 
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: emailController.text,
         password: passwordController.text,
       );
+      SMAHelperFunctions.showSnackBar(context,"Signed in successfully");
       _hideLoadingDialog();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Signed in successfully')),
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const Navigation()),
       );
-      Navigator.push(context, MaterialPageRoute(builder: (context)=>const Navigation()));
     } on FirebaseAuthException catch (e) {
       _hideLoadingDialog();
 
@@ -76,39 +89,42 @@ class _SMALoginFormState extends State<SMALoginForm> {
       switch (e.code) {
         case 'user-not-found':
           errorMessage = 'No user found for that email.';
+          SMADeviceUtils.vibrate(Duration(milliseconds: 100));
           break;
         case 'wrong-password':
           errorMessage = 'Wrong password provided.';
+          SMADeviceUtils.vibrate(Duration(milliseconds: 500));
           break;
         case 'invalid-email':
           errorMessage = 'Invalid email address.';
+          SMADeviceUtils.vibrate(Duration(milliseconds: 500));
           break;
         case 'user-disabled':
           errorMessage = 'User has been disabled.';
+          SMADeviceUtils.vibrate(Duration(milliseconds: 500));
           break;
         case 'invalid-credential':
-          errorMessage = 'The supplied auth credential is incorrect. Consider creating an account.';
+          errorMessage = 'The supplied auth credential is incorrect';
+          SMADeviceUtils.vibrate(Duration(milliseconds: 500));
           break;
         default:
           errorMessage = 'An unknown error occurred.';
+          SMADeviceUtils.vibrate(Duration(milliseconds: 500));
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage)),
-      );
+      SMAHelperFunctions.showSnackBar(context,errorMessage);
     } catch (e) {
       _hideLoadingDialog();
-
+      SMAHelperFunctions.showSnackBar(context,'An error occurred. Please try again.');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('An error occurred. Please try again.')),
       );
+      SMADeviceUtils.vibrate(Duration(milliseconds: 500));
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
-    bool _passwordVisible = false;
 
     return Form(
       key: _formKey,
@@ -133,41 +149,40 @@ class _SMALoginFormState extends State<SMALoginForm> {
               },
             ),
             const SizedBox(height: SMASizes.spaceBtwInputFields),
-            TextFormField(
-              controller: passwordController,
-              decoration:  InputDecoration(
-                prefixIcon: const Icon(Iconsax.password_check),
-                labelText: SMATexts.password,
-                suffixIcon: IconButton(
-                  icon: Icon(
-                    _passwordVisible
-                        ? Iconsax.eye
-                        : Iconsax.eye_slash,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      _passwordVisible = !_passwordVisible;
-                    });
-                  },
+          TextFormField(
+            controller: passwordController,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Iconsax.password_check),
+              labelText: 'Password',
+              suffixIcon: IconButton(
+                icon: Icon(
+                  _passwordVisible ? Iconsax.eye : Iconsax.eye_slash,
                 ),
+                onPressed: () {
+                  setState(() {
+                    _passwordVisible = !_passwordVisible;
+                  });
+                },
               ),
-              obscureText: !_passwordVisible,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter your password';
-                }
-                if (value.length < 6) {
-                  return 'Password must be at least 6 characters';
-                }
-                return null;
-              },
             ),
+            obscureText: !_passwordVisible,
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your password';
+              }
+              if (value.length < 6) {
+                return 'Password must be at least 6 characters';
+              }
+              return null;
+            },
+          ),
             const SizedBox(height: SMASizes.spaceBtwInputFields / 2),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Row(children: [
-                Checkbox(value: true, onChanged: (value) {}),
-                const Text(SMATexts.rememberMe),
-              ]),
+              // Row(children: [
+              //   Checkbox(value: true, onChanged: (value) {}),
+              //   const Text(SMATexts.rememberMe),
+              // ]),
+              Spacer(),
               TextButton(
                   onPressed: () {}, child: const Text(SMATexts.forgetPassword)),
             ]),
@@ -195,4 +210,11 @@ class _SMALoginFormState extends State<SMALoginForm> {
       ),
     );
   }
+  @override
+  void dispose() {
+    passwordController.dispose();
+    emailController.dispose();
+    super.dispose();
+  }
 }
+

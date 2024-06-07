@@ -71,7 +71,6 @@ class _ChatHomePageState extends State<ChatHomePage> {
         username: userData['username'],
         currentUser: _auth.currentUser!.uid,
         otherUser: userData['uis'],
-
         onTap: () {
           Navigator.push(
             context,
@@ -103,7 +102,9 @@ class UserTile extends StatefulWidget {
     super.key,
     required this.text,
     required this.onTap,
-    required this.username, required this.currentUser, required this.otherUser,
+    required this.username,
+    required this.currentUser,
+    required this.otherUser,
   });
 
   @override
@@ -113,25 +114,38 @@ class UserTile extends StatefulWidget {
 class _UserTileState extends State<UserTile> {
   final FireStoreServices _fireStoreServices = FireStoreServices();
 
-  bool isFriend = false;
-  bool isRequested = false;
+
 
   @override
   void initState() {
     super.initState();
     checkIfRequested();
+    isCurrentUserFriend();
   }
 
+  bool isFriend = false;
+  bool isRequested = true;
+
   Future<void> checkIfRequested() async {
-    bool requested = await _fireStoreServices.isCurrentUserRequested(widget.currentUser, widget.otherUser);
+    bool requested = await _fireStoreServices.isCurrentUserRequested(
+        widget.currentUser, widget.otherUser);
     setState(() {
       isRequested = requested;
     });
   }
 
+  Future<void> isCurrentUserFriend() async {
+    bool friend = await _fireStoreServices.isCurrentUserFriend(
+        widget.currentUser, widget.otherUser);
+    setState(() {
+      isFriend = friend;
+    });
+  }
+
   Future<void> sendFollowRequest() async {
     try {
-      await _fireStoreServices.sendFollowRequest(widget.currentUser, widget.otherUser);
+      await _fireStoreServices.sendFollowRequest(
+          widget.currentUser, widget.otherUser);
       setState(() {
         isRequested = true;
       });
@@ -143,7 +157,8 @@ class _UserTileState extends State<UserTile> {
 
   Future<void> unsendFollowRequest() async {
     try {
-      await _fireStoreServices.unsendFollowRequest(widget.currentUser, widget.otherUser);
+      await _fireStoreServices.unsendFollowRequest(
+          widget.currentUser, widget.otherUser);
       setState(() {
         isRequested = false;
       });
@@ -183,62 +198,69 @@ class _UserTileState extends State<UserTile> {
               isFriend
                   ? SizedBox.shrink()
                   : IconButton(
-                onPressed: () {
-                  isRequested
-                  ? showDialog(context: context, builder: (BuildContext context){
-                    return AlertDialog(
-                      title: Text("Do you want to cancel friend request"),
-                      //content: Text("Do you want to send friend request to : ${widget.text}"),
-                      actions: <Widget>[
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
-                          child: Text("No"),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              unsendFollowRequest();
-                              showSnackBar(context, 'Follow Request Reverted');
-                              Navigator.of(context).pop();
-                            });
-                          },
-                          child: Text("Yes"),
-                        ),
-                      ],
-                    );
-                  })
-                  : showDialog(context: context, builder: (BuildContext context){
-                    return AlertDialog(
-                      title: Text("Do you want to send friend request to : ${widget.text}"),
-                      //content: Text("Do you want to send friend request to : ${widget.text}"),
-                      actions: <Widget>[
-                        TextButton(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                          },
-                          child: Text("No"),
-                        ),
-                        TextButton(
-                          onPressed: () {
-                            setState(() {
-                              sendFollowRequest();
-                              showSnackBar(context, 'Follow Request Sent');
-                              Navigator.of(context).pop();
-                            });
-                          },
-                          child: Text("Yes"),
-                        ),
-                      ],
-                    );
-                  });
-                },
-                icon: Icon(
-                  isRequested ? Iconsax.verify : Iconsax.add_circle,
-                ),
-              )
-
+                      onPressed: () {
+                        isRequested
+                            ? showDialog(
+                                context: context,
+                                builder: (BuildContext context) {
+                                  return AlertDialog(
+                                    title: Text(
+                                        "Do you want to cancel friend request"),
+                                    //content: Text("Do you want to send friend request to : ${widget.text}"),
+                                    actions: <Widget>[
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                        },
+                                        child: Text("No"),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            unsendFollowRequest();
+                                            showSnackBar(context,
+                                                'Follow Request Reverted');
+                                            Navigator.of(context).pop();
+                                          });
+                                        },
+                                        child: Text("Yes"),
+                                      ),
+                                    ],
+                                  );
+                                })
+                            : showDialog(
+                                context: context,
+                                builder: (BuildContext context) {
+                                  return AlertDialog(
+                                    title: Text(
+                                        "Do you want to send friend request to : ${widget.text}"),
+                                    //content: Text("Do you want to send friend request to : ${widget.text}"),
+                                    actions: <Widget>[
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                        },
+                                        child: Text("No"),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            sendFollowRequest();
+                                            showSnackBar(
+                                                context, 'Follow Request Sent');
+                                            Navigator.of(context).pop();
+                                          });
+                                        },
+                                        child: Text("Yes"),
+                                      ),
+                                    ],
+                                  );
+                                });
+                      },
+                      icon: Icon(
+                        isRequested ? Iconsax.verify : Iconsax.add_circle,
+                      ),
+                    )
             ],
           ),
         ));

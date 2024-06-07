@@ -9,7 +9,7 @@ class FireStoreServices {
     return _auth.currentUser;
   }
 
-  Future<DocumentSnapshot> getUserData() async {
+  Future<DocumentSnapshot<Map<String, dynamic>>> getUserData() async {
     User? user = getCurrentUser();
     if (user != null) {
       return await _firestore.collection('users').doc(user.uid).get();
@@ -169,14 +169,14 @@ class FireStoreServices {
 
       // Check if the document exists and if it contains the 'requested' field
       if (otherUserSnapshot.exists) {
-        print("Document exists");
+        //print("Document exists");
         Map<String, dynamic>? userData = otherUserSnapshot.data() as Map<String, dynamic>?;
 
         if (userData != null) {
           print("User data retrieved: $userData");
           if (userData.containsKey('followers')) {
             List<dynamic> followerList = userData['followers'] ?? [];
-            print("Requested list: $followerList");
+            //print("Requested list: $followerList");
             return followerList.contains(currentUserId);
           } else {
             print("Requested field does not exist");
@@ -195,6 +195,44 @@ class FireStoreServices {
       return false;
     }
   }
+
+  Future<bool> isAllowedToChat(String currentUserId, String otherUserId) async {
+    try {
+      // Get the document of the current user
+      DocumentSnapshot currentUserSnapshot = await _firestore.collection('users').doc(currentUserId).get();
+
+      // Check if the document exists and if it contains the 'following' field
+      if (currentUserSnapshot.exists) {
+        print("Current user document exists");
+        Map<String, dynamic>? userData = currentUserSnapshot.data() as Map<String, dynamic>?;
+
+        if (userData != null) {
+          print("User data retrieved: $userData");
+          if (userData.containsKey('following') || userData.containsKey('following')) {
+            List<dynamic> followingList = userData['following'] ?? [];
+            List<dynamic> followerList = userData['followers'] ?? [];
+            print("Following list: $followingList");
+            bool containsOtherUser = followerList.contains(otherUserId) || followingList.contains(otherUserId);
+            print("Does following list contain other user ID ($otherUserId)? $containsOtherUser");
+            return containsOtherUser;
+          } else {
+            print("Following field does not exist");
+          }
+        } else {
+          print("User data is null");
+        }
+      } else {
+        print("Current user document does not exist");
+      }
+
+      // Return false if the document doesn't exist or doesn't contain the 'following' field
+      return false;
+    } catch (e) {
+      print("Error checking if current user is following other user: $e");
+      return false;
+    }
+  }
+
 
 
 

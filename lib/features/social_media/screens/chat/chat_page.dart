@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import 'package:social_media_app/services/firestore.dart';
@@ -20,7 +21,12 @@ class ChatPage extends StatefulWidget {
   final String receiverId;
   final String receiverName;
   final String username;
-  ChatPage({super.key, required this.receiverEmail, required this.receiverId, required this.receiverName, required this.username});
+  ChatPage(
+      {super.key,
+      required this.receiverEmail,
+      required this.receiverId,
+      required this.receiverName,
+      required this.username});
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -35,26 +41,92 @@ class _ChatPageState extends State<ChatPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   bool isFriend = false;
+  bool canChat = false;
+  bool isAllowedToMessage = false;
 
   @override
   void initState() {
     super.initState();
+    isCurrentUserFriend();
+    isAllowedToChat();
     checkIfRequested();
+    isCurrentUserFriend();
   }
 
+
+  bool isRequested = true;
+
   Future<void> checkIfRequested() async {
-    bool friend = await _fireStoreServices.isCurrentUserRequested(_auth.currentUser!.uid, widget.receiverId);
+    bool requested = await _fireStoreServices.isCurrentUserRequested(
+        _auth.currentUser!.uid, widget.receiverId);
+    setState(() {
+      isRequested = requested;
+    });
+  }
+
+  Future<void> isCurrentUserFriend() async {
+    bool friend = await _fireStoreServices.isCurrentUserFriend(
+        _auth.currentUser!.uid, widget.receiverId);
     setState(() {
       isFriend = friend;
     });
   }
 
+  Future<void> sendFollowRequest() async {
+    try {
+      await _fireStoreServices.sendFollowRequest(
+          _auth.currentUser!.uid, widget.receiverId);
+      setState(() {
+        isRequested = true;
+      });
+      print("Follow request sent successfully");
+    } catch (e) {
+      print("Error sending follow request: $e");
+    }
+  }
+
+  Future<void> unsendFollowRequest() async {
+    try {
+      await _fireStoreServices.unsendFollowRequest(
+          _auth.currentUser!.uid, widget.receiverId);
+      setState(() {
+        isRequested = false;
+      });
+      print("Follow request canceled successfully");
+    } catch (e) {
+      print("Error canceling follow request: $e");
+    }
+  }
+
+  void showSnackBar(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> isAllowedToChat() async {
+    bool chat = await _fireStoreServices.isAllowedToChat(
+        _auth.currentUser!.uid, widget.receiverId);
+    if (mounted) {
+      print("Setting state to: $chat");
+      setState(() {
+        canChat = chat;
+        print("State updated. canChat: $canChat");
+      });
+    } else {
+      print("Widget not mounted, cannot set state.");
+    }
+  }
+
   void sendMessage() async {
     if (_messageController.text.isNotEmpty) {
-      await chatService.sendMessage(widget.receiverId, _messageController.text);
+      String message = _messageController.text.trim();
       _messageController.clear();
+      await chatService.sendMessage(widget.receiverId,message);
+
     }
     _scrollToBottom();
+    print(canChat);
   }
 
   final ScrollController _scrollController = ScrollController();
@@ -67,46 +139,148 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
+
+
 
   @override
   Widget build(BuildContext context) {
-
     bool dark = SMAHelperFunctions.isDarkMode(context);
     return Scaffold(
-      appBar: SMAAppBar(
-        title : Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.receiverName),
-            Text(
-              widget.username,
-              style: TextStyle(
-                  fontSize: SMASizes.fontSizeSm,
-                  color: SMAColors.textSecondary
+        appBar: SMAAppBar(
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(widget.receiverName),
+              Text(
+                widget.username,
+                style: TextStyle(
+                    fontSize: SMASizes.fontSizeSm,
+                    color: SMAColors.textSecondary),
+              )
+            ],
+          ),
+          actions: [
+            isFriend
+                ? SizedBox.shrink()
+                : IconButton(
+              onPressed: () {
+                isRequested
+                    ? showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: Text(
+                            "Do you want to cancel friend request"),
+                        //content: Text("Do you want to send friend request to : ${widget.text}"),
+                        actions: <Widget>[
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                            },
+                            child: Text("No"),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                unsendFollowRequest();
+                                showSnackBar(context,
+                                    'Follow Request Reverted');
+                                Navigator.of(context).pop();
+                              });
+                            },
+                            child: Text("Yes"),
+                          ),
+                        ],
+                      );
+                    })
+                    : showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: Text(
+                            "Do you want to send friend request to : ${widget.receiverName}"),
+                        //content: Text("Do you want to send friend request to : ${widget.text}"),
+                        actions: <Widget>[
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                            },
+                            child: Text("No"),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                sendFollowRequest();
+                                showSnackBar(context,
+                                    'Follow Request Sent');
+                                Navigator.of(context).pop();
+                              });
+                            },
+                            child: Text("Yes"),
+                          ),
+                        ],
+                      );
+                    });
+              },
+              icon: Icon(
+                isRequested ? Iconsax.verify : Iconsax.add_circle,
               ),
             )
           ],
+          // title: Text(widget.receiverName)
         ),
-        // title: Text(widget.receiverName)
-      ),
-      body: isFriend
-          ?Column(
-        children: [
-          Expanded(
-            child: _buildMessageList(),
-          ),
-          _buildUserInput(dark),
-        ],
-      )
-          : Center(
-        child: Text("you need to be friend first"),
-      )
-    );
+        body: canChat
+            ? Column(
+                children: [
+                  Expanded(
+                    child: _buildMessageList(),
+                  ),
+                  isAllowedToMessage || isFriend
+                      ? _buildUserInput(dark)
+                      : Container(
+                          decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(
+                                  SMASizes.borderRadiusLg),
+                              color: dark ? SMAColors.dark : SMAColors.light),
+                          height: 200,
+                          width: double.infinity,
+                          margin: EdgeInsets.all(SMASizes.defaultSpace),
+                          padding: EdgeInsets.all(SMASizes.defaultSpace),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Text(
+                                  "Do you want to continue chat with : ${widget.receiverName} ?"),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceAround,
+                                children: [
+                                  Expanded(
+                                      child: OutlinedButton(
+                                          onPressed: () {}, child: Text("No"))),
+                                  SizedBox(
+                                    width:
+                                        MediaQuery.of(context).size.width * 0.1,
+                                  ),
+                                  Expanded(
+                                      child: ElevatedButton(
+                                          onPressed: () {
+                                            setState(() {
+                                              isAllowedToMessage = true;
+                                            });
+                                          },
+                                          child: Text("Yes")))
+                                ],
+                              )
+                            ],
+                          ),
+                        ),
+                ],
+              )
+            : Center(
+          child: Image.asset("assets/gifs/loading.gif"),
+        ));
   }
 
   Widget _buildMessageList() {
@@ -132,10 +306,8 @@ class _ChatPageState extends State<ChatPage> {
 
   Widget _buildMessageItem(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    bool isCurrentUser =
-        data['senderID'] == _fireStoreServices.getCurrentUser()!.uid;
-    var alignment =
-        isCurrentUser ? Alignment.centerRight : Alignment.centerLeft;
+    bool isCurrentUser = data['senderID'] == _auth.currentUser!.uid;
+    var alignment = isCurrentUser ? Alignment.centerRight : Alignment.centerLeft;
 
     return Container(
       alignment: alignment,
@@ -143,40 +315,52 @@ class _ChatPageState extends State<ChatPage> {
         crossAxisAlignment:
             isCurrentUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
         children: [
-          ChatBubble(message: data['message'], isCurrentUser: isCurrentUser, timestamp: data['timestamp'],)
+          ChatBubble(
+            message: data['message'],
+            isCurrentUser: isCurrentUser,
+            timestamp: data['timestamp'], msgId: data['msgId'], receiverId: widget.receiverId,
+          )
         ],
       ),
     );
   }
 
   Widget _buildUserInput(dark) {
-
     return Padding(
-      padding: EdgeInsets.only(bottom: SMASizes.md,left: SMASizes.sm),
+      padding: EdgeInsets.only(bottom: SMASizes.md, left: SMASizes.sm),
       child: Row(children: [
         Expanded(
-          child: TextField(
-            decoration: InputDecoration(
-              hintText: "Write a message",
-              hintStyle: TextStyle(color: Colors.grey)
+          child: SingleChildScrollView(
+            child: TextField(
+              decoration: InputDecoration(
+                  hintText: "Write a message",
+                  hintStyle: TextStyle(color: Colors.grey)),
+              controller: _messageController,
+              obscureText: false,
+              minLines: 1,
+              maxLines: 8,
             ),
-            controller: _messageController,
-            obscureText: false,
-          ),
+          )
         ),
-
         Container(
-          decoration: BoxDecoration(
-            color: Colors.green,
-            shape: BoxShape.circle
-          ),
+          decoration:
+              BoxDecoration(color: Colors.green, shape: BoxShape.circle),
           margin: EdgeInsets.symmetric(horizontal: SMASizes.sm),
           child: IconButton(
             onPressed: sendMessage,
-            icon: Icon(Iconsax.send_2,size: SMASizes.iconLg,color: dark? SMAColors.dark : SMAColors.light,),
+            icon: Icon(
+              Iconsax.send_2,
+              size: SMASizes.iconLg,
+              color: dark ? SMAColors.dark : SMAColors.light,
+            ),
           ),
         )
       ]),
     );
+  }
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 }
