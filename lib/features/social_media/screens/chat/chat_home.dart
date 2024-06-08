@@ -114,8 +114,6 @@ class UserTile extends StatefulWidget {
 class _UserTileState extends State<UserTile> {
   final FireStoreServices _fireStoreServices = FireStoreServices();
 
-
-
   @override
   void initState() {
     super.initState();
@@ -193,7 +191,13 @@ class _UserTileState extends State<UserTile> {
               SizedBox(
                 width: SMASizes.spaceBtwItems,
               ),
-              Text(widget.text),
+              SizedBox(
+                width: MediaQuery.of(context).size.width * 0.5,
+                child: Text(
+                  widget.text,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
               Spacer(),
               isFriend
                   ? SizedBox.shrink()

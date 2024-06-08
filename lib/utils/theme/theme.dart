@@ -28,7 +28,7 @@ class SMAAppTheme{
       brightness: Brightness.dark,
       primaryColor: Colors.blue,
       scaffoldBackgroundColor: Colors.black,
-      textTheme: SMATextTheme.dartTextTheme,
+      textTheme: SMATextTheme.darkTextTheme,
       chipTheme: SMAChipTheme.darkChipTheme,
       appBarTheme: SMAAppBarTheme.darkAppBarTheme,
       checkboxTheme: SMACheckboxTheme.darkCheckboxTheme,

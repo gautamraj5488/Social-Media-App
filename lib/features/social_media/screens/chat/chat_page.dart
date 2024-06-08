@@ -134,7 +134,7 @@ class _ChatPageState extends State<ChatPage> {
   void _scrollToBottom() {
     _scrollController.animateTo(
       _scrollController.position.maxScrollExtent,
-      duration: Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
   }
@@ -153,7 +153,7 @@ class _ChatPageState extends State<ChatPage> {
               Text(widget.receiverName),
               Text(
                 widget.username,
-                style: TextStyle(
+                style: const TextStyle(
                     fontSize: SMASizes.fontSizeSm,
                     color: SMAColors.textSecondary),
               )
@@ -161,7 +161,7 @@ class _ChatPageState extends State<ChatPage> {
           ),
           actions: [
             isFriend
-                ? SizedBox.shrink()
+                ? const SizedBox.shrink()
                 : IconButton(
               onPressed: () {
                 isRequested
@@ -169,7 +169,7 @@ class _ChatPageState extends State<ChatPage> {
                     context: context,
                     builder: (BuildContext context) {
                       return AlertDialog(
-                        title: Text(
+                        title: const Text(
                             "Do you want to cancel friend request"),
                         //content: Text("Do you want to send friend request to : ${widget.text}"),
                         actions: <Widget>[
@@ -177,7 +177,7 @@ class _ChatPageState extends State<ChatPage> {
                             onPressed: () {
                               Navigator.of(context).pop();
                             },
-                            child: Text("No"),
+                            child: const Text("No"),
                           ),
                           TextButton(
                             onPressed: () {
@@ -188,7 +188,7 @@ class _ChatPageState extends State<ChatPage> {
                                 Navigator.of(context).pop();
                               });
                             },
-                            child: Text("Yes"),
+                            child: const Text("Yes"),
                           ),
                         ],
                       );
@@ -205,7 +205,7 @@ class _ChatPageState extends State<ChatPage> {
                             onPressed: () {
                               Navigator.of(context).pop();
                             },
-                            child: Text("No"),
+                            child: const Text("No"),
                           ),
                           TextButton(
                             onPressed: () {
@@ -216,7 +216,7 @@ class _ChatPageState extends State<ChatPage> {
                                 Navigator.of(context).pop();
                               });
                             },
-                            child: Text("Yes"),
+                            child: const Text("Yes"),
                           ),
                         ],
                       );
@@ -244,8 +244,8 @@ class _ChatPageState extends State<ChatPage> {
                               color: dark ? SMAColors.dark : SMAColors.light),
                           height: 200,
                           width: double.infinity,
-                          margin: EdgeInsets.all(SMASizes.defaultSpace),
-                          padding: EdgeInsets.all(SMASizes.defaultSpace),
+                          margin: const EdgeInsets.all(SMASizes.defaultSpace),
+                          padding: const EdgeInsets.all(SMASizes.defaultSpace),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             crossAxisAlignment: CrossAxisAlignment.center,
@@ -258,7 +258,9 @@ class _ChatPageState extends State<ChatPage> {
                                 children: [
                                   Expanded(
                                       child: OutlinedButton(
-                                          onPressed: () {}, child: Text("No"))),
+                                          onPressed: () {
+                                            Navigator.of(context).pop();
+                                          }, child: const Text("No"))),
                                   SizedBox(
                                     width:
                                         MediaQuery.of(context).size.width * 0.1,
@@ -270,7 +272,7 @@ class _ChatPageState extends State<ChatPage> {
                                               isAllowedToMessage = true;
                                             });
                                           },
-                                          child: Text("Yes")))
+                                          child: const Text("Yes")))
                                 ],
                               )
                             ],
@@ -327,12 +329,12 @@ class _ChatPageState extends State<ChatPage> {
 
   Widget _buildUserInput(dark) {
     return Padding(
-      padding: EdgeInsets.only(bottom: SMASizes.md, left: SMASizes.sm),
+      padding: const EdgeInsets.only(bottom: SMASizes.md, left: SMASizes.sm),
       child: Row(children: [
         Expanded(
           child: SingleChildScrollView(
             child: TextField(
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                   hintText: "Write a message",
                   hintStyle: TextStyle(color: Colors.grey)),
               controller: _messageController,
@@ -344,8 +346,8 @@ class _ChatPageState extends State<ChatPage> {
         ),
         Container(
           decoration:
-              BoxDecoration(color: Colors.green, shape: BoxShape.circle),
-          margin: EdgeInsets.symmetric(horizontal: SMASizes.sm),
+              const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
+          margin: const EdgeInsets.symmetric(horizontal: SMASizes.sm),
           child: IconButton(
             onPressed: sendMessage,
             icon: Icon(

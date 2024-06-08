@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
@@ -67,6 +68,14 @@ class SMAHelperFunctions {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => screen),
+    );
+  }
+  static void copyMessageToClipboard(BuildContext context,message) {
+    Clipboard.setData(ClipboardData(text: message));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Message copied to clipboard'),
+      ),
     );
   }
 

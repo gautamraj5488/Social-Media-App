@@ -62,19 +62,19 @@ class _SMALoginFormState extends State<SMALoginForm> {
       return;
     }
 
-    bool isConnected = await SMADeviceUtils.hasInternetConnection();
-    if (!isConnected) {
-      SMAHelperFunctions.showSnackBar(context,"No internet connection");
-      SMADeviceUtils.vibrate(Duration(milliseconds: 500));
-      return;
-    }
+    // bool isConnected = await SMADeviceUtils.hasInternetConnection();
+    // if (!isConnected) {
+    //   SMAHelperFunctions.showSnackBar(context,"No internet connection");
+    //   SMADeviceUtils.vibrate(Duration(milliseconds: 500));
+    //   return;
+    // }
 
     //_showLoadingDialog();
 
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: emailController.text,
-        password: passwordController.text,
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
       );
       SMAHelperFunctions.showSnackBar(context,"Signed in successfully");
       _hideLoadingDialog();

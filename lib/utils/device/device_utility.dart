@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
+import '../helpers/helper_fuctions.dart';
+
 class SMADeviceUtils {
   static void hideKeyboard(BuildContext context) {
     FocusScope.of(context).requestFocus(FocusNode());
@@ -102,14 +104,17 @@ class SMADeviceUtils {
     return Platform.isAndroid;
   }
 
-  static void launchUrl(String url) async {
+  static void launchUrl(BuildContext context, String url) async {
     if (await canLaunchUrlString(url)) {
       await launchUrlString(url);
     } else {
-      throw 'Could not launch $url';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          showCloseIcon: true,
+          content: Text('Failed to launch Url'),
+        ),
+      );
     }
   }
 
-
-// Add more device utility methods as per your specific requirements.
 }

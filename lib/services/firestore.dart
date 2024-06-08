@@ -209,10 +209,11 @@ class FireStoreServices {
         if (userData != null) {
           print("User data retrieved: $userData");
           if (userData.containsKey('following') || userData.containsKey('following')) {
+            List<dynamic> requestedList = userData['requested'] ?? [];
             List<dynamic> followingList = userData['following'] ?? [];
             List<dynamic> followerList = userData['followers'] ?? [];
             print("Following list: $followingList");
-            bool containsOtherUser = followerList.contains(otherUserId) || followingList.contains(otherUserId);
+            bool containsOtherUser = followerList.contains(otherUserId) || followingList.contains(otherUserId) || requestedList.contains(otherUserId);
             print("Does following list contain other user ID ($otherUserId)? $containsOtherUser");
             return containsOtherUser;
           } else {

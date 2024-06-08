@@ -12,6 +12,7 @@ import '../../../../utils/constants/sizes.dart';
 import '../../../../utils/constants/text_strings.dart';
 import '../../../../utils/helpers/helper_fuctions.dart';
 
+
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
 
@@ -252,11 +253,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 requested: [],
                                 requestToConfirm: [],
                               );
-                              Navigator.pop(context);
+                              // Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context)=>AuthPage()), (Route<dynamic> route) => false);
 
-                              // Show success message
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('User created successfully')),
+                                const SnackBar(content: Text('User created successfully, Please Login to continue')),
                               );
                               _clearForm();
                               Navigator.pop(context);
@@ -314,3 +314,5 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 }
+
+
