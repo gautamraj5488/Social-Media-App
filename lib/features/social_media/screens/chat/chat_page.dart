@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
+import 'package:social_media_app/features/social_media/screens/profile/profile_page.dart';
 import 'package:social_media_app/services/firestore.dart';
 import 'package:social_media_app/utils/constants/colors.dart';
 import 'package:social_media_app/utils/device/device_utility.dart';
@@ -123,7 +124,7 @@ class _ChatPageState extends State<ChatPage> {
       String message = _messageController.text.trim();
       _messageController.clear();
       await chatService.sendMessage(widget.receiverId,message);
-
+      _fireStoreServices.updateMessageTime(uid: widget.receiverId);
     }
     _scrollToBottom();
     print(canChat);
@@ -139,6 +140,24 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
+  Route _createRoute(uid) {
+    return PageRouteBuilder(
+      pageBuilder: (context, animation, secondaryAnimation) => ProfilePage(uid: uid, username: widget.username, fromChat: true,),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        const begin = Offset(1.0, 0.0);
+        const end = Offset.zero;
+        const curve = Curves.ease;
+
+        var tween =
+        Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+
+        return SlideTransition(
+          position: animation.drive(tween),
+          child: child,
+        );
+      },
+    );
+  }
 
 
 
@@ -147,17 +166,22 @@ class _ChatPageState extends State<ChatPage> {
     bool dark = SMAHelperFunctions.isDarkMode(context);
     return Scaffold(
         appBar: SMAAppBar(
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(widget.receiverName),
-              Text(
-                widget.username,
-                style: const TextStyle(
-                    fontSize: SMASizes.fontSizeSm,
-                    color: SMAColors.textSecondary),
-              )
-            ],
+          title: GestureDetector(
+            onTap: (){
+              Navigator.of(context).push(_createRoute(widget.receiverId));
+            },
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.receiverName),
+                Text(
+                  widget.username,
+                  style: const TextStyle(
+                      fontSize: SMASizes.fontSizeSm,
+                      color: SMAColors.textSecondary),
+                )
+              ],
+            ),
           ),
           actions: [
             isFriend
@@ -214,6 +238,9 @@ class _ChatPageState extends State<ChatPage> {
                                 showSnackBar(context,
                                     'Follow Request Sent');
                                 Navigator.of(context).pop();
+                              });
+                              setState(() {
+
                               });
                             },
                             child: const Text("Yes"),

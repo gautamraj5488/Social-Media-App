@@ -9,6 +9,17 @@ class ChatService{
   final FirebaseFirestore _firestore =  FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  Future<List<Map<String, dynamic>>> getUsersList() async {
+    try {
+      QuerySnapshot<Map<String, dynamic>> querySnapshot =
+      await _firestore.collection('users').get();
+      return querySnapshot.docs.map((doc) => doc.data()).toList();
+    } catch (e) {
+      print('Error fetching users list: $e');
+      return []; // or throw an exception if desired
+    }
+  }
+
   Stream<List<Map<String, dynamic>>> getUsersStream() {
     return _firestore.collection("users").snapshots().map((snapshot) {
       return snapshot.docs.map((doc) {
