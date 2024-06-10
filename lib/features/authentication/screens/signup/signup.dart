@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:social_media_app/common/widgets.login_signup/form_divider.dart';
 import 'package:social_media_app/common/widgets.login_signup/social_button.dart';
+import 'package:social_media_app/common/widgets/appbar/appbar.dart';
 
 import '../../../../services/firestore.dart';
 import '../../../../utils/constants/colors.dart';
@@ -14,7 +15,8 @@ import '../../../../utils/helpers/helper_fuctions.dart';
 
 
 class SignUpScreen extends StatefulWidget {
-  const SignUpScreen({super.key});
+  final String FCMtoken;
+  const SignUpScreen({super.key, required this.FCMtoken});
 
   @override
   State<SignUpScreen> createState() => _SignUpScreenState();
@@ -47,10 +49,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
   Widget build(BuildContext context) {
     final dark = SMAHelperFunctions.isDarkMode(context);
     return Scaffold(
-      appBar: AppBar(),
+      appBar: SMAAppBar(),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(SMASizes.defaultSpace),
+          padding: const EdgeInsets.only(bottom: SMASizes.defaultSpace,right: SMASizes.defaultSpace,left: SMASizes.defaultSpace),
           child: Column(
             children: [
               Text(SMATexts.signupTitle,
@@ -252,6 +254,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                 followers: [],
                                 requested: [],
                                 requestToConfirm: [],
+                                profilePicture: '', FCMtoken: widget.FCMtoken,
                               );
                               // Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context)=>AuthPage()), (Route<dynamic> route) => false);
 

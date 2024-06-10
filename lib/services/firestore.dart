@@ -1,5 +1,12 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import '../features/authentication/screens/login/login.dart';
+
 
 class FireStoreServices {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -9,14 +16,64 @@ class FireStoreServices {
     return _auth.currentUser;
   }
 
-  Future<DocumentSnapshot<Map<String, dynamic>>> getUserData() async {
+  // logout(BuildContext context) {
+  //   showModalBottomSheet(
+  //     context: context,
+  //     builder: (BuildContext context) {
+  //       return Container(
+  //         height: 200,
+  //         width: double.infinity,
+  //         decoration: BoxDecoration(
+  //           //color: Colors.white,
+  //             borderRadius: BorderRadius.only(topRight: Radius.circular(12),topLeft: Radius.circular(12))
+  //         ),
+  //
+  //         child: Column(
+  //           mainAxisAlignment: MainAxisAlignment.spaceAround,
+  //           children: <Widget>[
+  //             Text('Are you sure to Logout ?'),
+  //             Row(
+  //               mainAxisAlignment: MainAxisAlignment.spaceAround,
+  //               children: [
+  //                 ElevatedButton(
+  //                   onPressed: () {
+  //                     FirebaseAuth.instance.signOut();
+  //                     Navigator.pop(context);
+  //                     Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (BuildContext context)=> LoginScreen()), (route)=>false);
+  //
+  //                   },
+  //                   child: Text('Yes'),
+  //                 ),
+  //                 OutlinedButton(
+  //                   onPressed: () {
+  //                     Navigator.pop(context);
+  //                   },
+  //                   child: Text('Close'),
+  //                 ),
+  //               ],
+  //             )
+  //           ],
+  //         ),
+  //       );
+  //     },
+  //   );
+  //   // FirebaseAuth.instance.signOut();
+  //   // Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (BuildContext context)=> LoginScreen()), (route)=>false);
+  // }
+
+  Future<String?> getFCMToken() async {
+    return await FirebaseMessaging.instance.getToken();
+  }
+
+  Future<DocumentSnapshot<Map<String, dynamic>>> getUserData(uid) async {
     User? user = getCurrentUser();
     if (user != null) {
-      return await _firestore.collection('users').doc(user.uid).get();
+      return await _firestore.collection('users').doc(uid).get();
     } else {
       throw Exception("No user logged in");
     }
   }
+
 
   Future<void> createUser({
     required String firstName,
@@ -26,6 +83,8 @@ class FireStoreServices {
     required String phoneNumber,
     required String password,
     required String uid,
+    required String FCMtoken,
+    required String profilePicture,
     required List<String> following,
     required List<String> followers,
     required List<String> requested,
@@ -38,10 +97,12 @@ class FireStoreServices {
           'lastName': lastName,
           'username': username,
           'email': email,
+          'profilePic': profilePicture,
           'phoneNumber': phoneNumber,
           'password': password,
           'createdAt': FieldValue.serverTimestamp(),
           'uis':uid,
+          'FCMtoken':FCMtoken,
           'following': following,
           'followers': followers,
           'requested': requested,
@@ -52,6 +113,106 @@ class FireStoreServices {
       print("Error creating user: $e");
     }
   }
+
+  Future<void> updateUser({
+    required String firstName,
+    required String lastName,
+    required String username,
+    required String phoneNumber,
+    required String password,
+    required String uid,
+  }) async {
+    try {
+      // Update an existing user document in Firestore
+      await _firestore.collection('users').doc(uid).update({
+        'firstName': firstName,
+        'lastName': lastName,
+        'username': username,
+        'phoneNumber': phoneNumber,
+        'password': password,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      print("User updated successfully");
+    } catch (e) {
+      print("Error updating user: $e");
+    }
+  }
+
+  Future<void> updateUserPasswordFromLogin({
+    required String password,
+    required String uid,
+  }) async {
+    try {
+      // Update an existing user document in Firestore
+      await _firestore.collection('users').doc(uid).update({
+        'password': password,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      print("User updated successfully");
+    } catch (e) {
+      print("Error updating user: $e");
+    }
+  }
+
+  Future<void> updateMessageTime({
+    required String uid,
+  }) async {
+    try {
+      // Update an existing user document in Firestore
+      await _firestore.collection('users').doc(uid).update({
+        'messageUpdatedAt': FieldValue.serverTimestamp(),
+      });
+      print("User updated successfully");
+    } catch (e) {
+      print("Error updating user: $e");
+    }
+  }
+
+  Future<void> updateFCMtoken({
+    required String FCMtoken,
+    required String uid,
+  }) async {
+    try {
+      // Update an existing user document in Firestore
+      await _firestore.collection('users').doc(uid).update({
+        'FCMtoken': FCMtoken,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      print("User updated successfully");
+    } catch (e) {
+      print("Error updating user: $e");
+    }
+  }
+
+
+  // AIzaSyAMcw6jDBdoKvCC265Wdde0BQ2dU5CzRzs
+  Future<void> sendNotification(String serverKey, String recipientToken) async {
+    final url = Uri.parse('https://fcm.googleapis.com/v1/projects/social-media-app-436b7/messages:send');
+    final headers = {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer $serverKey',
+    };
+
+    final body = {
+      'message': {
+        'token': recipientToken,
+        'notification': {
+          'title': 'Friend Request',
+          'body': 'You have received a friend request',
+        },
+      },
+    };
+
+    final response = await http.post(url, headers: headers, body: jsonEncode(body));
+
+    if (response.statusCode == 200) {
+      print('Notification sent successfully');
+    } else {
+      print('Failed to send notification: ${response.reasonPhrase}');
+    }
+  }
+
+
 
   // Send a follow request
   Future<void> sendFollowRequest(String senderId, String recipientId) async {
@@ -100,7 +261,7 @@ class FireStoreServices {
 
       // Remove currentUserId from the followers list of the unfollowed user
       await _firestore.collection('users').doc(userIdToUnfollow).update({
-        'followers': FieldValue.arrayRemove([currentUserId]),
+        'requested': FieldValue.arrayRemove([currentUserId]),
       });
 
       print("Successfully unfollowed user");

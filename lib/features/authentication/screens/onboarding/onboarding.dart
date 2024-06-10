@@ -100,7 +100,7 @@ class _OnBoardingScreenState extends State<OnBoardingScreen> {
               onPressed: () {
                 _currentPage == 2
                     ? Navigator.push(context,
-                        MaterialPageRoute(builder: (context) => AuthPage()))
+                        MaterialPageRoute(builder: (context) => LoginScreen()))
                     : controller.nextPage(
                         duration: const Duration(milliseconds: 600),
                         curve: Curves.easeInOut);

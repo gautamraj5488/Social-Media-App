@@ -1,10 +1,13 @@
 
 
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:social_media_app/navigation_menu.dart';
+import 'package:social_media_app/services/firestore.dart';
 import 'package:social_media_app/utils/device/device_utility.dart';
 import 'package:social_media_app/utils/helpers/helper_fuctions.dart';
 
@@ -14,8 +17,9 @@ import '../../../../../utils/constants/text_strings.dart';
 import '../../signup/signup.dart';
 
 class SMALoginForm extends StatefulWidget {
+  final String FCMtoken;
   SMALoginForm({
-    super.key,
+    super.key, required this.FCMtoken,
   });
 
   @override
@@ -25,9 +29,23 @@ class SMALoginForm extends StatefulWidget {
 class _SMALoginFormState extends State<SMALoginForm> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  FireStoreServices _fireStoreServices = FireStoreServices();
+  FirebaseAuth _auth = FirebaseAuth.instance;
   bool _passwordVisible = false;
   final _formKey = GlobalKey<FormState>();
 
+
+
+  Future<void> _handleForgotPassword(String email) async {
+    try {
+
+      SMAHelperFunctions.showSnackBar(context,"Password reset email sent");
+      print('Password reset email sent');
+    } catch (e) {
+      SMAHelperFunctions.showSnackBar(context,"Error: $e");
+      print('Error: $e');
+    }
+  }
 
   void _showLoadingDialog() {
     showDialog(
@@ -69,18 +87,19 @@ class _SMALoginFormState extends State<SMALoginForm> {
     //   return;
     // }
 
-    //_showLoadingDialog();
-
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
-      );
+      ).then((value){
+        _fireStoreServices.updateUserPasswordFromLogin(password: passwordController.text.trim(), uid: _auth.currentUser!.uid);
+        _fireStoreServices.updateFCMtoken(FCMtoken: widget.FCMtoken, uid: _auth.currentUser!.uid);
+      });
       SMAHelperFunctions.showSnackBar(context,"Signed in successfully");
       _hideLoadingDialog();
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const Navigation()),
+        MaterialPageRoute(builder: (context) => Navigation()),
       );
     } on FirebaseAuthException catch (e) {
       _hideLoadingDialog();
@@ -177,14 +196,44 @@ class _SMALoginFormState extends State<SMALoginForm> {
             },
           ),
             const SizedBox(height: SMASizes.spaceBtwInputFields / 2),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              // Row(children: [
-              //   Checkbox(value: true, onChanged: (value) {}),
-              //   const Text(SMATexts.rememberMe),
-              // ]),
-              Spacer(),
+            Row(mainAxisAlignment: MainAxisAlignment.end, children: [
               TextButton(
-                  onPressed: () {}, child: const Text(SMATexts.forgetPassword)),
+                  onPressed: () async {
+                    String? email = await showDialog<String>(
+                      context: context,
+                      builder: (BuildContext context) {
+                        TextEditingController emailController = TextEditingController();
+                        return AlertDialog(
+                          title: Text('Enter your email'),
+                          content: TextField(
+                            controller: emailController,
+                            decoration: InputDecoration(hintText: 'Email'),
+                          ),
+                          actions: <Widget>[
+                            TextButton(
+                              child: Text('Cancel'),
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                              },
+                            ),
+                            TextButton(
+                              child: Text('Submit'),
+                              onPressed: () {
+                                Navigator.of(context).pop(emailController.text);
+                              },
+                            ),
+                          ],
+                        );
+                      },
+                    );
+
+                    if (email != null && email.isNotEmpty) {
+                      await _handleForgotPassword(email);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('A password reset email has been sent.')),
+                      );
+                    }
+                  },child: const Text(SMATexts.forgetPassword)),
             ]),
             const SizedBox(height: SMASizes.spaceBtwSections),
             SizedBox(
@@ -202,7 +251,7 @@ class _SMALoginFormState extends State<SMALoginForm> {
                       Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (context) => const SignUpScreen()));
+                              builder: (context) => SignUpScreen(FCMtoken: widget.FCMtoken,)));
                     },
                     child: const Text(SMATexts.createAccount))),
           ],

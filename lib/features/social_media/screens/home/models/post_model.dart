@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Post {
+  final String uid;
   final String id;
   final String username;
   final String text;
@@ -9,8 +10,10 @@ class Post {
   final String videoUrl;
   final Timestamp createdAt;
   final String name;
+  final String profilePic;
 
   Post({
+    required this.uid,
     required this.id,
     required this.username,
     required this.text,
@@ -19,12 +22,15 @@ class Post {
     required this.videoUrl,
     required this.createdAt,
     required this.name,
+    required this.profilePic
   });
+
 
   factory Post.fromFirestore(DocumentSnapshot doc) {
     Map data = doc.data() as Map<String, dynamic>;
 
     return Post(
+      uid : data['userId'],
       id: doc.id,
       username: data['username'] ?? '',
       text: data['text'] ?? '',
@@ -32,7 +38,37 @@ class Post {
       imageUrl: data['imageUrl'] ?? '',
       videoUrl: data['videoUrl'] ?? '',
       createdAt: data['createdAt'] ?? Timestamp.now(),
-      name: data['name'] ?? '',
+      name: data['name'] ?? '', profilePic: data['profilePic'] ?? '',
     );
+  }
+
+  factory Post.fromJson(Map<String, dynamic> json) {
+    return Post(
+      uid: json['uid'],
+      id: json['id'],
+      username: json['username'] ?? '',
+      text: json['text'] ?? '',
+      link: json['link'] ?? '',
+      imageUrl: json['imageUrl'] ?? '',
+      videoUrl: json['videoUrl'] ?? '',
+      createdAt: Timestamp.fromMillisecondsSinceEpoch(json['createdAt'] ?? DateTime.now().millisecondsSinceEpoch),
+      name: json['name'] ?? '',
+      profilePic: json['profilePic'] ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'uid': uid,
+      'id': id,
+      'username': username,
+      'text': text,
+      'link': link,
+      'imageUrl': imageUrl,
+      'videoUrl': videoUrl,
+      'createdAt': createdAt.millisecondsSinceEpoch,
+      'name': name,
+      'profilePic': profilePic,
+    };
   }
 }

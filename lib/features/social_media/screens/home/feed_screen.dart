@@ -1,9 +1,15 @@
+import 'dart:async';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dots_indicator/dots_indicator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:social_media_app/features/social_media/screens/profile/profile_page.dart';
 import 'package:social_media_app/utils/constants/colors.dart';
 import 'package:social_media_app/utils/device/device_utility.dart';
 import 'package:social_media_app/utils/helpers/helper_fuctions.dart';
@@ -11,6 +17,7 @@ import 'package:social_media_app/utils/theme/custom_theme/text_theme.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import '../../../../utils/constants/sizes.dart';
+import 'comments.dart';
 import 'models/post_model.dart';
 
 class FeedScreen extends StatefulWidget {
@@ -36,17 +43,21 @@ class _FeedScreenState extends State<FeedScreen> {
       QuerySnapshot snapshot = await _firestore.collection('posts').get();
       List<Post> postsData =
           snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
-      setState(() {
-        posts = postsData;
-        isLoading = false;
-      });
+      if(mounted){
+        setState(() {
+          posts = postsData;
+          isLoading = false;
+        });
+      }
     } catch (e) {
       if (kDebugMode) {
         print("Error fetching posts: $e");
       }
-      setState(() {
-        isLoading = false;
-      });
+      if(mounted){
+        setState(() {
+          isLoading = false;
+        });
+      }
     }
   }
 
@@ -75,8 +86,7 @@ class PostWidget extends StatefulWidget {
 }
 
 class _PostWidgetState extends State<PostWidget> {
-  VideoPlayerController? _videoController;
-  bool _isPlaying = false;
+  // VideoPlayerController? _videoController;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   Future<List<Map<String, dynamic>>>? mutualFollowersDataFuture;
@@ -85,48 +95,8 @@ class _PostWidgetState extends State<PostWidget> {
   @override
   void initState() {
     super.initState();
-    if (widget.post.videoUrl != '') {
-      _videoController = VideoPlayerController.network(widget.post.videoUrl)
-        ..initialize().then((_) {
-          _videoController!.setLooping(true);
-          setState(() {});
-        });
-    }
     mutualFollowersDataFuture =
         _fetchMutualFollowersData(_auth.currentUser!.uid);
-  }
-
-  void _togglePlayPause() {
-    setState(() {
-      if (_isPlaying) {
-        _videoController!.pause();
-      } else {
-        _videoController!.play();
-      }
-      _isPlaying = !_isPlaying;
-    });
-  }
-
-  Widget _buildVideoPlayer() {
-    return _videoController != null && _videoController!.value.isInitialized
-        ? AspectRatio(
-            aspectRatio: _videoController!.value.aspectRatio,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                VideoPlayer(_videoController!),
-                GestureDetector(
-                  onTap: _togglePlayPause,
-                  child: Icon(
-                    _isPlaying ? Icons.pause : Icons.play_arrow,
-                    size: 50.0,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          )
-        : const SizedBox.shrink();
   }
 
   Widget _buildTimestamp() {
@@ -156,9 +126,8 @@ class _PostWidgetState extends State<PostWidget> {
     }
 
     try {
-      // Fetch current user's followers and followings
       final currentUserDoc =
-          await _firestore.collection('users').doc(currentUserId).get();
+      await _firestore.collection('users').doc(currentUserId).get();
       if (!currentUserDoc.exists) {
         if (kDebugMode) {
           print('Error: Current user document not found');
@@ -167,19 +136,17 @@ class _PostWidgetState extends State<PostWidget> {
       }
 
       final List<String> followers =
-          List<String>.from(currentUserDoc.data()?['followers'] ?? []);
+      List<String>.from(currentUserDoc.data()?['followers'] ?? []);
       final List<String> followings =
-          List<String>.from(currentUserDoc.data()?['following'] ?? []);
+      List<String>.from(currentUserDoc.data()?['following'] ?? []);
 
-      // Find mutual followers
       final List<String> mutualFollowersIds =
-          followers.where((follower) => followings.contains(follower)).toList();
+      followers.where((follower) => followings.contains(follower)).toList();
 
       print('Mutual followers IDs: $mutualFollowersIds');
 
-      // Ensure 'shared_posts' document exists
       final sharedPostsDocRef =
-          _firestore.collection('shared_posts').doc('shared_posts');
+      _firestore.collection('shared_posts').doc('shared_posts');
       final sharedPostsDocSnapshot = await sharedPostsDocRef.get();
 
       if (!sharedPostsDocSnapshot.exists) {
@@ -191,17 +158,21 @@ class _PostWidgetState extends State<PostWidget> {
         print('shared_posts document created');
       }
 
-      // Share post with mutual followers
-      for (final followerId in selectedIds) {
+      final batch = _firestore.batch();
+      for (final followerId in mutualFollowersIds) {
         print('Sharing post to follower: $followerId');
-        await _firestore.collection('shared_posts').add({
-          'postId': widget.post.id,
-          'sharedBy': currentUserId,
-          'sharedTo': followerId,
-          'sharedAt': Timestamp.now(),
-        });
+        batch.set(
+          _firestore.collection('shared_posts').doc(),
+          {
+            'postId': widget.post.id,
+            'sharedBy': currentUserId,
+            'sharedTo': followerId,
+            'sharedAt': Timestamp.now(),
+          },
+        );
         print('Post shared to $followerId');
       }
+      await batch.commit();
 
       print('Post shared successfully to all mutual followers.');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -215,25 +186,22 @@ class _PostWidgetState extends State<PostWidget> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _fetchMutualFollowersData(
-      String userId) async {
+  Future<List<Map<String, dynamic>>> _fetchMutualFollowersData(String userId) async {
     try {
       final followerSnapshot =
-          await _firestore.collection('users').doc(userId).get();
+      await _firestore.collection('users').doc(userId).get();
       final followingSnapshot =
-          await _firestore.collection('users').doc(userId).get();
+      await _firestore.collection('users').doc(userId).get();
 
       if (followerSnapshot.exists && followingSnapshot.exists) {
         final followers =
-            List<String>.from(followerSnapshot.data()?['followers'] ?? []);
+        List<String>.from(followerSnapshot.data()?['followers'] ?? []);
         final following =
-            List<String>.from(followingSnapshot.data()?['following'] ?? []);
+        List<String>.from(followingSnapshot.data()?['following'] ?? []);
 
-        // Find mutual followers' IDs
         final mutualFollowersIds =
-            followers.where((user) => following.contains(user)).toList();
+        followers.where((user) => following.contains(user)).toList();
 
-        // Fetch data of mutual followers
         final mutualFollowersData = await _fetchUserData(mutualFollowersIds);
 
         if (kDebugMode) {
@@ -253,9 +221,7 @@ class _PostWidgetState extends State<PostWidget> {
     return [];
   }
 
-// Function to fetch user data from Firestore based on user IDs
-  Future<List<Map<String, dynamic>>> _fetchUserData(
-      List<String> userIds) async {
+  Future<List<Map<String, dynamic>>> _fetchUserData(List<String> userIds) async {
     try {
       final userDataList = <Map<String, dynamic>>[];
       for (final userId in userIds) {
@@ -272,6 +238,24 @@ class _PostWidgetState extends State<PostWidget> {
       return [];
     }
   }
+  Route _createRoute() {
+    return PageRouteBuilder(
+      pageBuilder: (context, animation, secondaryAnimation) => CommentSectionPage(
+        post: widget.post,
+      ),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        const begin = Offset(0.0, 1.0);
+        const end = Offset.zero;
+        const curve = Curves.ease;
+        var tween =
+        Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+        return SlideTransition(
+          position: animation.drive(tween),
+          child: child,
+        );
+      },
+    );
+  }
 
   PageController _pageController = PageController(initialPage: 0);
   int _currentPage = 0;
@@ -286,15 +270,21 @@ class _PostWidgetState extends State<PostWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              widget.post.name,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+            GestureDetector(
+              onTap: () {
+                Navigator.of(context).push(_createRoute());
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.post.name,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  _buildTimestamp(),
+                ],
+              ),
             ),
-            _buildTimestamp(),
-            // if (widget.post.text != null) ...[
-            //   SizedBox(height: 10),
-            //   Text(widget.post.text!),
-            // ],
             DescriptionTextWidget(
               text: widget.post.text,
             ),
@@ -332,19 +322,21 @@ class _PostWidgetState extends State<PostWidget> {
                         });
                       },
                       children: [
-                        if (widget.post.imageUrl != '')
+                        if (widget.post.imageUrl.isNotEmpty)
                           BuildPhotoWidget(imageUrl: widget.post.imageUrl),
-                        if (widget.post.videoUrl != '')
-                          VideoPlayerWidget(videoUrl: widget.post.videoUrl),
+                        if (widget.post.videoUrl.isNotEmpty)
+                          VideoPlayerWidget(videoUrl: widget.post.videoUrl,imageUrl: widget.post.imageUrl, videoKey: widget.post.videoUrl,),
                       ],
+
+
                     ),
                   ),
                   const SizedBox(height: 10),
                   DotsIndicator(
                     dotsCount:
-                        widget.post.imageUrl != "" && widget.post.videoUrl != ""
-                            ? 2
-                            : 1,
+                    widget.post.imageUrl != "" && widget.post.videoUrl != ""
+                        ? 2
+                        : 1,
                     position: _currentPage.toInt(),
                     decorator: DotsDecorator(
                       size: const Size.square(8.0),
@@ -358,6 +350,7 @@ class _PostWidgetState extends State<PostWidget> {
             ),
             const SizedBox(height: 10),
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 IconButton(
                   icon: const Icon(Icons.thumb_up),
@@ -368,14 +361,14 @@ class _PostWidgetState extends State<PostWidget> {
                 IconButton(
                   icon: const Icon(Icons.comment),
                   onPressed: () {
-                    // Handle comment
-                  },
+                    Navigator.of(context).push(_createRoute());
+                  }
                 ),
                 IconButton(
                   icon: const Icon(Icons.share),
                   onPressed: () {
                     showModalBottomSheet(
-                        isScrollControlled: false,
+                        isScrollControlled: true,
                         context: context,
                         builder: (BuildContext context) {
                           return Stack(
@@ -386,7 +379,7 @@ class _PostWidgetState extends State<PostWidget> {
                                   padding: EdgeInsets.all(12),
                                   child: Column(
                                     crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                    CrossAxisAlignment.start,
                                     children: [
                                       Padding(
                                         padding: const EdgeInsets.all(12),
@@ -398,7 +391,7 @@ class _PostWidgetState extends State<PostWidget> {
                                       ),
                                       StatefulBuilder(builder:
                                           (BuildContext context,
-                                              StateSetter setState) {
+                                          StateSetter setState) {
                                         return FutureBuilder<
                                             List<Map<String, dynamic>>>(
                                           future: mutualFollowersDataFuture,
@@ -407,15 +400,15 @@ class _PostWidgetState extends State<PostWidget> {
                                                 ConnectionState.waiting) {
                                               return const Center(
                                                   child:
-                                                      CircularProgressIndicator());
+                                                  CircularProgressIndicator());
                                             } else if (snapshot.hasError) {
                                               return Center(
                                                   child: Text(
                                                       'Error: ${snapshot.error}'));
                                             } else if (snapshot.hasData) {
                                               final List<Map<String, dynamic>>
-                                                  mutualFollowersData =
-                                                  snapshot.data!;
+                                              mutualFollowersData =
+                                              snapshot.data!;
                                               if (mutualFollowersData.isEmpty) {
                                                 return const Center(
                                                     child: Text(
@@ -423,9 +416,9 @@ class _PostWidgetState extends State<PostWidget> {
                                               } else {
                                                 return GridView.builder(
                                                   physics:
-                                                      NeverScrollableScrollPhysics(),
+                                                  NeverScrollableScrollPhysics(),
                                                   gridDelegate:
-                                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                                  const SliverGridDelegateWithFixedCrossAxisCount(
                                                     crossAxisCount: 2,
                                                     crossAxisSpacing: SMASizes
                                                         .gridViewSpacing,
@@ -438,13 +431,13 @@ class _PostWidgetState extends State<PostWidget> {
                                                   itemBuilder:
                                                       (context, index) {
                                                     final followerData =
-                                                        mutualFollowersData[
-                                                            index];
+                                                    mutualFollowersData[
+                                                    index];
                                                     final String id = followerData[
-                                                        'uis']; // Assuming 'id' is the key for follower ID in Firestore
+                                                    'uis']; // Assuming 'uid' is the key for follower ID in Firestore
                                                     final bool isSelected =
-                                                        selectedIds
-                                                            .contains(id);
+                                                    selectedIds
+                                                        .contains(id);
 
                                                     return GestureDetector(
                                                         onTap: () {
@@ -460,107 +453,107 @@ class _PostWidgetState extends State<PostWidget> {
                                                         },
                                                         child: Container(
                                                           margin:
-                                                              const EdgeInsets
-                                                                  .all(12),
+                                                          const EdgeInsets
+                                                              .all(12),
                                                           padding:
-                                                              const EdgeInsets
-                                                                  .all(4),
+                                                          const EdgeInsets
+                                                              .all(4),
                                                           decoration:
-                                                              BoxDecoration(
-                                                                  borderRadius:
-                                                                      BorderRadius
-                                                                          .circular(
-                                                                              12),
-                                                                  color: dark
-                                                                      ? isSelected
-                                                                          ? Colors.blue.withOpacity(
-                                                                              0.4)
-                                                                          : SMAColors
-                                                                              .darkContainer
-                                                                      : SMAColors
-                                                                          .lightContainer),
+                                                          BoxDecoration(
+                                                              borderRadius:
+                                                              BorderRadius
+                                                                  .circular(
+                                                                  12),
+                                                              color: dark
+                                                                  ? isSelected
+                                                                  ? Colors.blue.withOpacity(
+                                                                  0.4)
+                                                                  : SMAColors
+                                                                  .darkContainer
+                                                                  : SMAColors
+                                                                  .lightContainer),
                                                           child: Column(
                                                             mainAxisAlignment:
-                                                                MainAxisAlignment
-                                                                    .spaceAround,
+                                                            MainAxisAlignment
+                                                                .spaceAround,
                                                             children: [
                                                               CircleAvatar(
                                                                 radius: MediaQuery.of(
-                                                                            context)
-                                                                        .size
-                                                                        .width *
+                                                                    context)
+                                                                    .size
+                                                                    .width *
                                                                     0.1,
                                                                 backgroundImage: followerData[
-                                                                            'avatarUrl'] !=
-                                                                        null
+                                                                'avatarUrl'] !=
+                                                                    null
                                                                     ? NetworkImage(
-                                                                        followerData[
-                                                                            'avatarUrl'])
+                                                                    followerData[
+                                                                    'avatarUrl'])
                                                                     : null,
                                                                 child: followerData[
-                                                                            'avatarUrl'] ==
-                                                                        null
+                                                                'avatarUrl'] ==
+                                                                    null
                                                                     ? const Icon(
-                                                                        Icons
-                                                                            .person,
-                                                                        size:
-                                                                            30)
+                                                                    Icons
+                                                                        .person,
+                                                                    size:
+                                                                    30)
                                                                     : null,
                                                               ),
                                                               const SizedBox(
                                                                   height: 8),
                                                               Text(
                                                                 followerData[
-                                                                            'firstName'] +
-                                                                        " " +
-                                                                        followerData[
-                                                                            'lastName'] ??
+                                                                'firstName'] +
+                                                                    " " +
+                                                                    followerData[
+                                                                    'lastName'] ??
                                                                     'No Name',
                                                                 style: dark
                                                                     ? isSelected
-                                                                        ? SMATextTheme
-                                                                            .darkTextTheme
-                                                                            .headlineSmall!
-                                                                            .copyWith(
-                                                                                color: Colors
-                                                                                    .blue)
-                                                                        : SMATextTheme
-                                                                            .darkTextTheme
-                                                                            .headlineSmall
+                                                                    ? SMATextTheme
+                                                                    .darkTextTheme
+                                                                    .headlineSmall!
+                                                                    .copyWith(
+                                                                    color: Colors
+                                                                        .blue)
                                                                     : SMATextTheme
-                                                                        .lightTextTheme
-                                                                        .bodySmall,
+                                                                    .darkTextTheme
+                                                                    .headlineSmall
+                                                                    : SMATextTheme
+                                                                    .lightTextTheme
+                                                                    .bodySmall,
                                                                 textAlign:
-                                                                    TextAlign
-                                                                        .center,
+                                                                TextAlign
+                                                                    .center,
                                                                 overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
+                                                                TextOverflow
+                                                                    .ellipsis,
                                                               ),
                                                               Text(
                                                                 followerData[
-                                                                        'username'] ??
+                                                                'username'] ??
                                                                     'No username',
                                                                 style: dark
                                                                     ? isSelected
-                                                                        ? SMATextTheme
-                                                                            .darkTextTheme
-                                                                            .bodySmall!
-                                                                            .copyWith(
-                                                                                color: Colors
-                                                                                    .blue)
-                                                                        : SMATextTheme
-                                                                            .darkTextTheme
-                                                                            .bodySmall
+                                                                    ? SMATextTheme
+                                                                    .darkTextTheme
+                                                                    .bodySmall!
+                                                                    .copyWith(
+                                                                    color: Colors
+                                                                        .blue)
                                                                     : SMATextTheme
-                                                                        .lightTextTheme
-                                                                        .bodySmall,
+                                                                    .darkTextTheme
+                                                                    .bodySmall
+                                                                    : SMATextTheme
+                                                                    .lightTextTheme
+                                                                    .bodySmall,
                                                                 textAlign:
-                                                                    TextAlign
-                                                                        .center,
+                                                                TextAlign
+                                                                    .center,
                                                                 overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
+                                                                TextOverflow
+                                                                    .ellipsis,
                                                               ),
                                                             ],
                                                           ),
@@ -580,12 +573,19 @@ class _PostWidgetState extends State<PostWidget> {
                                   ),
                                 ),
                               ),
-                              ElevatedButton(onPressed: _sharePost, child: Padding(padding: EdgeInsets.symmetric(horizontal: 12),child:Text("Share Posts"))),
+                              ElevatedButton(
+                                  onPressed: () {
+                                    _sharePost();
+                                    Navigator.pop(context);
+                                  },
+                                  child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                          horizontal: 12),
+                                      child: Text("Share Posts"))),
                             ],
                           );
                         }).whenComplete(_onBottomSheetClosed);
                   },
-                  // onPressed: _sharePost,
                 ),
               ],
             ),
@@ -595,16 +595,11 @@ class _PostWidgetState extends State<PostWidget> {
     );
   }
 
-  @override
-  void dispose() {
-    _videoController?.dispose();
-    super.dispose();
-  }
-
   void _onBottomSheetClosed() {
     selectedIds.clear();
   }
 }
+
 
 class DescriptionTextWidget extends StatefulWidget {
   final String text;
@@ -673,10 +668,147 @@ class _DescriptionTextWidgetState extends State<DescriptionTextWidget> {
   }
 }
 
+// class VideoPlayerWidget extends StatefulWidget {
+//   final String videoUrl;
+//   final String videoKey;
+//   final String imageUrl;
+//   const VideoPlayerWidget({Key? key, required this.videoUrl, required this.videoKey, required this.imageUrl}) : super(key: key);
+//
+//   @override
+//   _VideoPlayerWidgetState createState() => _VideoPlayerWidgetState();
+// }
+//
+// class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
+//   late VideoPlayerController _videoController;
+//   bool _videoInitialized = false;
+//
+//   @override
+//   void initState() {
+//     super.initState();
+//     if (widget.imageUrl.isNotEmpty && widget.videoUrl.isNotEmpty) {
+//       _initializeVideoController();
+//     }
+//     if (widget.imageUrl.isEmpty && widget.videoUrl.isNotEmpty) {
+//       _initializeVideoController();
+//     }
+//   }
+//
+//   void _initializeVideoController() async {
+//     // Check if video file exists locally
+//     bool videoExists = await _checkIfVideoExists();
+//
+//     if (videoExists) {
+//       // If video exists, use it directly
+//       _videoController = VideoPlayerController.file(File(await _getLocalVideoPath()))
+//         ..initialize().then((_) {
+//           _videoController.setLooping(true);
+//           setState(() {
+//             _videoInitialized = true;
+//           });
+//         });
+//     } else {
+//       // If video doesn't exist, download and save it, then use it
+//       await _downloadAndSaveVideo();
+//       _videoController = VideoPlayerController.file(File(await _getLocalVideoPath()))
+//         ..initialize().then((_) {
+//           _videoController.setLooping(true);
+//           setState(() {});
+//         });
+//     }
+//   }
+//
+//   @override
+//   void dispose() {
+//     _videoController.dispose();
+//     super.dispose();
+//   }
+//
+//   @override
+//   Widget build(BuildContext context) {
+//
+//     if (_videoInitialized) {
+//       return VisibilityDetector(
+//         key: Key(widget.videoKey),
+//         onVisibilityChanged: (visibilityInfo) {
+//           if (visibilityInfo.visibleFraction == 0) {
+//             _videoController.pause();
+//           } else {
+//             _videoController.play();
+//           }
+//         },
+//         child: AspectRatio(
+//           aspectRatio: _videoController.value.aspectRatio,
+//           child: Stack(
+//             alignment: Alignment.center,
+//             children: [
+//               VideoPlayer(_videoController),
+//               _buildBufferingIndicator(),
+//             ],
+//           ),
+//         ),
+//       );
+//     } else {
+//       // Return a placeholder widget or an empty container if video is not initialized
+//       return Container();
+//     }
+//   }
+//
+//   Widget _buildBufferingIndicator() {
+//     return Center(
+//       child: _videoController.value.isBuffering
+//           ? CircularProgressIndicator()
+//           : SizedBox.shrink(),
+//     );
+//   }
+//
+//   Future<bool> _checkIfVideoExists() async {
+//     String localPath = await _getLocalVideoPath();
+//     return File(localPath).exists();
+//   }
+//
+//   Future<void> _downloadAndSaveVideo() async {
+//     List<int> bytes = await _getVideoBytes(widget.videoUrl);
+//     String localPath = await _getLocalVideoPath();
+//     await File(localPath).writeAsBytes(bytes);
+//   }
+//
+//   Future<List<int>> _getVideoBytes(String videoUrl) async {
+//     // Send an HTTP GET request to fetch the video data
+//     var response = await http.get(Uri.parse(videoUrl));
+//
+//     // Check if the request was successful (status code 200)
+//     if (response.statusCode == 200) {
+//       // Return the video data as bytes
+//       return response.bodyBytes;
+//     } else {
+//       // If the request fails, throw an exception or handle the error as needed
+//       throw Exception('Failed to load video: ${response.statusCode}');
+//     }
+//   }
+//
+//   Future<String> _getLocalVideoPath() async {
+//     // Get the directory where the video file will be saved
+//     Directory appDocDir = await getApplicationDocumentsDirectory();
+//
+//     // Construct the local file path
+//     String localFilePath = '${appDocDir.path}/video.mp4';
+//
+//     // Return the local file path
+//     return localFilePath;
+//   }
+// }
+
 class VideoPlayerWidget extends StatefulWidget {
   final String videoUrl;
+  final String videoKey;
+  final String imageUrl;
 
-  const VideoPlayerWidget({Key? key, required this.videoUrl}) : super(key: key);
+  const VideoPlayerWidget({
+    Key? key,
+    required this.videoUrl,
+    required this.videoKey,
+    required this.imageUrl,
+  }) : super(key: key);
 
   @override
   _VideoPlayerWidgetState createState() => _VideoPlayerWidgetState();
@@ -684,7 +816,7 @@ class VideoPlayerWidget extends StatefulWidget {
 
 class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   late VideoPlayerController _videoController;
-  bool _isPlaying = false;
+  bool _videoInitialized = false;
 
   @override
   void initState() {
@@ -693,56 +825,14 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   }
 
   void _initializeVideoController() {
-    _videoController = VideoPlayerController.network(widget.videoUrl)
+     Uri uri = Uri.parse(widget.videoUrl);
+    _videoController = VideoPlayerController.networkUrl(uri)
       ..initialize().then((_) {
-        _videoController.setLooping(false);
-        setState(() {});
+        _videoController.setLooping(true);
+        setState(() {
+          _videoInitialized = true;
+        });
       });
-  }
-
-  void _togglePlayPause() {
-    setState(() {
-      if (_isPlaying) {
-        _videoController.pause();
-      } else {
-        _videoController.play();
-      }
-      _isPlaying = !_isPlaying;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return VisibilityDetector(
-      key: const Key('video-visibility-detector'),
-      onVisibilityChanged: (visibilityInfo) {
-        if (visibilityInfo.visibleFraction == 0) {
-          _videoController.pause();
-          setState(() {
-            _isPlaying = false;
-          });
-        }
-      },
-      child: _videoController.value.isInitialized
-          ? AspectRatio(
-              aspectRatio: _videoController.value.aspectRatio,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  VideoPlayer(_videoController),
-                  GestureDetector(
-                    onTap: _togglePlayPause,
-                    child: Icon(
-                      _isPlaying ? Icons.pause : Icons.play_arrow,
-                      size: 50.0,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : const SizedBox.shrink(),
-    );
   }
 
   @override
@@ -750,7 +840,47 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     _videoController.dispose();
     super.dispose();
   }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_videoInitialized) {
+      return VisibilityDetector(
+        key: Key(widget.videoKey),
+        onVisibilityChanged: (visibilityInfo) {
+          if (visibilityInfo.visibleFraction == 0) {
+            _videoController.pause();
+          } else {
+            _videoController.play();
+          }
+        },
+        child: AspectRatio(
+          aspectRatio: _videoController.value.aspectRatio,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              VideoPlayer(_videoController),
+              _buildBufferingIndicator(),
+            ],
+          ),
+        ),
+      );
+    } else {
+      // Return a placeholder widget or an empty container if video is not initialized
+      return Image.asset("assets/gifs/loading.gif");
+    }
+  }
+
+  Widget _buildBufferingIndicator() {
+    return Center(
+      child: _videoController.value.isBuffering
+          ? CircularProgressIndicator()
+          : SizedBox.shrink(),
+    );
+  }
 }
+
+
+
 
 class BuildPhotoWidget extends StatelessWidget {
   final String? imageUrl;
@@ -764,22 +894,13 @@ class BuildPhotoWidget extends StatelessWidget {
 
   Widget _buildPhoto() {
     if (imageUrl != null && imageUrl!.isNotEmpty) {
-      return Image.network(
-        imageUrl!,
-        loadingBuilder: (BuildContext context, Widget child,
-            ImageChunkEvent? loadingProgress) {
-          if (loadingProgress == null) {
-            return child;
-          } else {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-        },
-        errorBuilder:
-            (BuildContext context, Object error, StackTrace? stackTrace) {
+      return CachedNetworkImage(
+        imageUrl: imageUrl!,
+        placeholder: (context, url) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+        errorWidget: (context, url, error) {
           print('Error loading image: $error');
-          print('StackTrace: $stackTrace');
           return const Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -792,9 +913,12 @@ class BuildPhotoWidget extends StatelessWidget {
             ],
           );
         },
+        fit: BoxFit.cover,
       );
     } else {
       return const SizedBox.shrink();
     }
   }
 }
+
+

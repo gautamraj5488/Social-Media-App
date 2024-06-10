@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:social_media_app/utils/theme/theme.dart';
@@ -5,7 +6,7 @@ import 'package:social_media_app/utils/theme/theme.dart';
 import 'features/authentication/screens/login/authpage.dart';
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, });
 
   // This widget is the root of your application.
   @override

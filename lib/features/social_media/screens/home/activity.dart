@@ -23,13 +23,20 @@ class _ChatHomePageState extends State<ActivityPage> {
 
   @override
   Widget build(BuildContext context) {
+    bool dark = SMAHelperFunctions.isDarkMode(context);
     return Scaffold(
-      appBar: SMAAppBar(
+      appBar: AppBar(
         title: Text(
           "Activity",
           style: TextStyle(fontSize: SMASizes.fontSizeLg),
         ),
-        showBackArrow: true,
+
+        leading: IconButton(
+            icon: Icon (Iconsax.arrow_left,color: dark ? SMAColors.light :SMAColors.dark,),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
         //actions: [IconButton(onPressed: () {}, icon: Icon(Iconsax.more))],
       ),
       body: _buildUserList(),
@@ -51,7 +58,6 @@ class _ChatHomePageState extends State<ActivityPage> {
         }
 
         final requestToConfirmList = snapshot.data!;
-
         return ListView.builder(
           itemCount: requestToConfirmList.length,
           itemBuilder: (context, index) {

@@ -1,10 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:social_media_app/features/authentication/screens/login/login.dart';
+import 'package:social_media_app/utils/helpers/helper_fuctions.dart';
 
 import '../../../../services/firestore.dart';
+import '../../../../utils/constants/colors.dart';
 import 'activity.dart';
 import 'create_post.dart';
 import 'feed_screen.dart';
@@ -18,63 +21,106 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-
   final user = FirebaseAuth.instance.currentUser!;
   final FireStoreServices _fireStoreServices = FireStoreServices();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   late Future<DocumentSnapshot> _userDataFuture;
 
   @override
   void initState() {
     super.initState();
-    _userDataFuture = _fireStoreServices.getUserData();
+    _userDataFuture = _fireStoreServices.getUserData(_auth.currentUser!.uid);
   }
-
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: YourAppBar(),
-
-      body:FutureBuilder<QuerySnapshot>(
-        future: _firestore.collection('posts').get(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: Image.asset("assets/gifs/loading.gif"));
-          } else if (snapshot.hasError) {
-            return Center(
-              child: Text('Error fetching data'),
-            );
-          } else if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return Center(
-              child: Text('No posts available'),
-            );
-          } else {
-            List<Post> posts = snapshot.data!.docs.map((doc) => Post.fromFirestore(doc)).toList();
-            // Display the list of posts using a FeedScreen or any other widget
-            return FeedScreen();
-          }
-        },
-      )
-
-
-    );
+        body: FutureBuilder<QuerySnapshot>(
+          future: _firestore.collection('posts').get(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: Image.asset("assets/gifs/loading.gif"));
+            } else if (snapshot.hasError) {
+              return Center(
+                child: Text('Error fetching data'),
+              );
+            } else if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Center(
+                child: Text('No posts available'),
+              );
+            } else {
+              List<Post> posts = snapshot.data!.docs
+                  .map((doc) => Post.fromFirestore(doc))
+                  .toList();
+              // Display the list of posts using a FeedScreen or any other widget
+              return FeedScreen();
+            }
+          },
+        ));
   }
 }
 
-
-
-class YourAppBar extends StatelessWidget implements PreferredSizeWidget {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+class YourAppBar extends StatefulWidget implements PreferredSizeWidget {
+  const YourAppBar({super.key});
+  @override
+  State<YourAppBar> createState() => _YourAppBarState();
 
   @override
   Size get preferredSize => AppBar().preferredSize;
+}
+
+class _YourAppBarState extends State<YourAppBar> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
+
+  int requestToConfirmLength = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _getRequestToConfirmLength();
+  }
+
+  Future<void> _getRequestToConfirmLength() async {
+    final String? currentUserId = _auth.currentUser?.uid;
+
+    if (currentUserId == null) {
+      if (kDebugMode) {
+        print('Error: No current user logged in');
+      }
+      return;
+    }
+
+    try {
+      final DocumentSnapshot userDoc = await _firestore.collection('users').doc(currentUserId).get();
+      if (userDoc.exists) {
+        final Map<String, dynamic>? userData = userDoc.data() as Map<String, dynamic>?; // Cast to Map<String, dynamic>
+        if (userData != null) {
+          final List<dynamic>? requestToConfirm = userData['requestToConfirm'] as List<dynamic>?; // Access the 'requestToConfirm' key
+          setState(() {
+            requestToConfirmLength = requestToConfirm?.length ?? 0;
+          });
+        } else {
+          print('User data is null');
+        }
+      } else {
+        print('User document not found');
+      }
+
+    } catch (e) {
+      print('Error fetching requestToConfirm list: $e');
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
+    bool dark = SMAHelperFunctions.isDarkMode(context);
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
@@ -102,7 +148,8 @@ class YourAppBar extends StatelessWidget implements PreferredSizeWidget {
                 title: Text('User not found'),
               );
             } else {
-              Map<String, dynamic> userData = userSnapshot.data!.data() as Map<String, dynamic>;
+              Map<String, dynamic> userData =
+                  userSnapshot.data!.data() as Map<String, dynamic>;
               String username = userData['username'] ?? '';
               String firstName = userData['firstName'] ?? '';
               String name = '$firstName ${userData['lastName'] ?? ''}';
@@ -110,58 +157,31 @@ class YourAppBar extends StatelessWidget implements PreferredSizeWidget {
               return AppBar(
                 title: Text('Welcome, $firstName'),
                 actions: [
-                  IconButton(
-                    onPressed: () {
-                      showModalBottomSheet(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return Container(
-                            height: 200,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                                //color: Colors.white,
-                              borderRadius: BorderRadius.only(topRight: Radius.circular(12),topLeft: Radius.circular(12))
-                            ),
-
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.spaceAround,
-                              children: <Widget>[
-                                Text('Are you sure to Logout ?'),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                  children: [
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        FirebaseAuth.instance.signOut();
-                                        Navigator.pop(context);
-                                        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (BuildContext context)=> LoginScreen()), (route)=>false);
-
-                                      },
-                                      child: Text('Yes'),
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        Navigator.pop(context);
-                                      },
-                                      child: Text('Close'),
-                                    ),
-                                  ],
-                                )
-                              ],
-                            ),
+                  Stack(
+                    alignment: Alignment.topRight,
+                    children: [
+                      IconButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => ActivityPage()),
                           );
                         },
-                      );
-                     // FirebaseAuth.instance.signOut();
-                     // Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (BuildContext context)=> LoginScreen()), (route)=>false);
-                    },
-                    icon: Icon(Iconsax.logout),
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => ActivityPage()));
-                    },
-                    icon: Icon(Iconsax.activity),
+                        icon: Icon(Iconsax.activity),
+                      ),
+                      requestToConfirmLength!=0?Positioned(
+                        top: 1,
+                        right: 3,
+                        child: Container(
+                        padding: EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                            border: Border.all(width: 1,color: dark? SMAColors.white : SMAColors.black)
+                        ),
+                        child: Text(requestToConfirmLength.toString(),style: TextStyle(fontSize: 10,fontWeight: FontWeight.w600),),
+                      ),) :SizedBox.shrink()
+                    ],
                   ),
                   IconButton(
                     onPressed: () {
@@ -175,7 +195,7 @@ class YourAppBar extends StatelessWidget implements PreferredSizeWidget {
                         ),
                       );
                     },
-                    icon: Icon(Iconsax.undo),
+                    icon: Icon(Iconsax.add),
                   ),
                 ],
               );
@@ -186,6 +206,3 @@ class YourAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 }
-
-
-
