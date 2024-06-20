@@ -50,6 +50,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   User? user;
+  String? profilePicUrl;
 
 
   Future<void> loadCachedPosts() async {
@@ -97,6 +98,7 @@ class _ProfilePageState extends State<ProfilePage> {
     isCurrentUserFriend();
     fetchUserData();
     _getCurrentUser();
+    _fetchUserProfilePic();
   }
 
   void _getCurrentUser() {
@@ -194,67 +196,146 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<void> uploadProfilePicture(File imageFile) async {
-    // Check if the user is authenticated
-    User? user = _auth.currentUser;
-    if (user == null) {
-      print("User is not authenticated.");
-      showSnackBar(context, "User not authenticated. Please log in.");
-      return;
-    }
+  // Future<void> uploadProfilePicture(File imageFile) async {
+  //   // Check if the user is authenticated
+  //   User? user = _auth.currentUser;
+  //   if (user == null) {
+  //     print("User is not authenticated.");
+  //     showSnackBar(context, "User not authenticated. Please log in.");
+  //     return;
+  //   }
+  //
+  //   try {
+  //     // Get the user ID
+  //     String userId = user.uid;
+  //     print("Starting upload for user: $userId");
+  //
+  //     // Define the storage path
+  //     String path = 'profile_pictures/$userId/${DateTime.now().millisecondsSinceEpoch}.jpg';
+  //     print("Storage reference: $path");
+  //
+  //     // Upload the file
+  //     String? downloadUrl = await _uploadFile(imageFile, path);
+  //     showSnackBar(context, "Got downloadable url ${downloadUrl}");
+  //
+  //     // Check if the upload was successful
+  //     if (downloadUrl == null) {
+  //       print("Upload failed.");
+  //       showSnackBar(context, "Error uploading profile picture.");
+  //       return;
+  //     }
+  //
+  //     // Update the user's Firestore document with the new profile picture URL
+  //     await FirebaseFirestore.instance.collection('users').doc(userId).update({'profilePic': downloadUrl});
+  //     print("Profile picture uploaded successfully: $downloadUrl");
+  //     showSnackBar(context, "Profile picture uploaded successfully.");
+  //   } catch (e) {
+  //     print("Error uploading profile picture: $e");
+  //     showSnackBar(context, "Error uploading profile picture: $e");
+  //   }
+  // }
+  //
+  // Future<String?> _uploadFile(File file, String path) async {
+  //   try {
+  //     // Upload file to Firebase Storage
+  //     TaskSnapshot taskSnapshot = await _storage.ref(path).putFile(file);
+  //     showSnackBar(context, "1");
+  //
+  //     // Retrieve download URL
+  //     String downloadUrl = await taskSnapshot.ref.getDownloadURL();
+  //     showSnackBar(context, "2");
+  //     // Return the download URL
+  //     return downloadUrl;
+  //   } catch (e) {
+  //     print("Error uploading file: $e");
+  //     showSnackBar(context, "Error uploading file: $e");
+  //     return null;
+  //   }
+  // }
 
-    try {
-      // Get the user ID
-      String userId = user.uid;
-      print("Starting upload for user: $userId");
+  File? _selectedImage;
 
-      // Define the storage path
-      String path = 'profile_pictures/$userId/${DateTime.now().millisecondsSinceEpoch}.jpg';
-      print("Storage reference: $path");
-
-      // Upload the file
-      String? downloadUrl = await _uploadFile(imageFile, path);
-      showSnackBar(context, "Got downloadable url ${downloadUrl}");
-
-      // Check if the upload was successful
-      if (downloadUrl == null) {
-        print("Upload failed.");
-        showSnackBar(context, "Error uploading profile picture.");
-        return;
-      }
-
-      // Update the user's Firestore document with the new profile picture URL
-      await FirebaseFirestore.instance.collection('users').doc(userId).update({'profilePic': downloadUrl});
-      print("Profile picture uploaded successfully: $downloadUrl");
-      showSnackBar(context, "Profile picture uploaded successfully.");
-    } catch (e) {
-      print("Error uploading profile picture: $e");
-      showSnackBar(context, "Error uploading profile picture: $e");
+  Future<void> _pickImage(ImageSource source) async {
+    final pickedFile = await ImagePicker().pickImage(source: source);
+    if (pickedFile != null) {
+      setState(() {
+        _selectedImage = File(pickedFile.path);
+      });
+      await _submitProfilePicture();
     }
   }
 
   Future<String?> _uploadFile(File file, String path) async {
     try {
-      // Upload file to Firebase Storage
       TaskSnapshot taskSnapshot = await _storage.ref(path).putFile(file);
-      showSnackBar(context, "1");
-
-      // Retrieve download URL
-      String downloadUrl = await taskSnapshot.ref.getDownloadURL();
-      showSnackBar(context, "2");
-      // Return the download URL
-      return downloadUrl;
+      return await taskSnapshot.ref.getDownloadURL();
     } catch (e) {
       print("Error uploading file: $e");
-      showSnackBar(context, "Error uploading file: $e");
+      showSnackBar(context,"Error uploading file: $e");
       return null;
     }
   }
 
+  Future<void> _submitProfilePicture() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    String? imageUrl;
+    String userId = _auth.currentUser!.uid;
+    if (_selectedImage != null) {
+      imageUrl = await _uploadFile(
+        _selectedImage!,
+        'profile_photo/$userId/images/${DateTime.now().millisecondsSinceEpoch}.jpg',
+      );
+    }
 
 
+    if (imageUrl != null) {
+      await _firestore.collection('profile_pics').doc(userId).set({
+        'imageUrl': imageUrl,
+        'createdAt': Timestamp.now(),
+        'username': widget.username,
+        'userId': userId,
+      });
 
+      await _firestore.collection('users').doc(userId).update({
+        'profilePic': imageUrl,
+      });
 
+      setState(() {
+        userData!['profilePic'] = imageUrl;
+      });
+    }
+
+    setState(() {
+      isLoading = false;
+    });
+  }
+
+  Future<void> _fetchUserProfilePic() async {
+    String userId = _auth.currentUser!.uid;
+    QuerySnapshot querySnapshot = await _firestore
+        .collection('profile_pics')
+        .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
+
+    if (querySnapshot.docs.isNotEmpty) {
+      setState(() {
+        profilePicUrl = querySnapshot.docs.first['imageUrl'];
+      });
+    }
+  }
+
+  ImageProvider _getImageProvider() {
+    if (profilePicUrl != null && profilePicUrl!.isNotEmpty) {
+      return NetworkImage(profilePicUrl!);
+    } else {
+      return AssetImage('assets/user.png');
+    }
+  }
 
   void showSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -342,14 +423,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 return const Center(child: Text("User data not found"));
               }
 
-              ImageProvider _getImageProvider() {
-                if (userData.containsKey('profilePic') && userData['profilePic'].isNotEmpty) {
-                  return NetworkImage(userData['profilePic']);
-                } else {
-                  return AssetImage('assets/user.png');
-                }
-              }
-
               return SafeArea(
                   child: Padding(
                 padding: const EdgeInsets.all(SMASizes.md),
@@ -360,46 +433,39 @@ class _ProfilePageState extends State<ProfilePage> {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Stack(
+                        isLoading
+                            ? Center(child: CircularProgressIndicator())
+                            : Stack(
                           alignment: Alignment.bottomRight,
                           children: [
                             CircleAvatar(
                               radius: 50,
-                              backgroundImage:  _getImageProvider()
+                              backgroundImage: _getImageProvider(),
                             ),
-                            userData['uis'] == _auth.currentUser!.uid
-                                ? Positioned(
-                              bottom: 2,
-                              right: 2,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.blue,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 2),
-                                ),
-                                child: IconButton(
-                                  onPressed: ()async {
-                                    final picker = ImagePicker();
-                                    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-
-                                    if (pickedFile != null) {
-                                      File file = File(pickedFile.path);
-                                      await uploadProfilePicture(file);
-                                    }
+                            if (userData['uis'] == _auth.currentUser!.uid)
+                              Positioned(
+                                bottom: 2,
+                                right: 2,
+                                child: GestureDetector(
+                                  onTap: () async {
+                                    await _pickImage(ImageSource.gallery);
                                   },
-                                  icon: const Icon(
-                                    Iconsax.edit,
-                                    color: Colors.white,
-                                    size: 16,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.blue,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white, width: 2),
+                                    ),
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(minWidth: 28, minHeight: 28),
+                                    child: Icon(
+                                      Icons.edit,
+                                      color: Colors.white,
+                                      size: 16,
+                                    ),
                                   ),
-                                  padding: const EdgeInsets.all(4), // Smaller padding
-                                  constraints: const BoxConstraints(
-                                      minWidth: 28,
-                                      minHeight: 28), // Constraints to make it smaller
                                 ),
                               ),
-                            )
-                                : const SizedBox.shrink(),
                           ],
                         ),
                         FollowFollowing(
