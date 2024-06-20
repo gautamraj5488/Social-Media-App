@@ -90,7 +90,7 @@ class _ActivityPageState extends State<ActivityPage> {
                   text: name,
                   username: username,
                   currentUser: _auth.currentUser!.uid,
-                  otherUser: userData['uid'],
+                  otherUser: userData['uis'],
                 );
               },
             );

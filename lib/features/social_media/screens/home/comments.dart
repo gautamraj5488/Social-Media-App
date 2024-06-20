@@ -240,12 +240,12 @@ class _CommentSectionPageState extends State<CommentSectionPage> {
         }
 
 
-        setState(() {
-          comments.add(comment);
-          _scrollToBottom();
-          FocusScope.of(context).unfocus();
-          SMADeviceUtils.hideKeyboard(context);
-        });
+        // setState(() {
+        //   comments.add(comment);
+        //   _scrollToBottom();
+        //   FocusScope.of(context).unfocus();
+        //   SMADeviceUtils.hideKeyboard(context);
+        // });
 
         await _firestore
             .collection('posts')
@@ -254,6 +254,10 @@ class _CommentSectionPageState extends State<CommentSectionPage> {
             .add(comment.toMap());
 
         setState(() {
+          comments.add(comment);
+          _scrollToBottom();
+          FocusScope.of(context).unfocus();
+          SMADeviceUtils.hideKeyboard(context);
           _commentController.clear();
         });
 
