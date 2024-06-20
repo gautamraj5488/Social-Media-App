@@ -366,6 +366,10 @@ class FireStoreServices {
         'following': FieldValue.arrayUnion([recipientId]),
       });
 
+      await _firestore.collection('users').doc(senderId).update({
+        'requested': FieldValue.arrayRemove([recipientId]),
+      });
+
       print("Follow request approved successfully");
     } catch (e) {
       print("Error approving follow request: $e");

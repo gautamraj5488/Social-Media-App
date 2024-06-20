@@ -196,6 +196,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> uploadProfilePicture(File imageFile) async {
     // Check if the user is authenticated
+    User? user = _auth.currentUser;
     if (user == null) {
       print("User is not authenticated.");
       showSnackBar(context, "User not authenticated. Please log in.");
@@ -204,7 +205,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     try {
       // Get the user ID
-      String userId = user!.uid;
+      String userId = user.uid;
       print("Starting upload for user: $userId");
 
       // Define the storage path
@@ -213,6 +214,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
       // Upload the file
       String? downloadUrl = await _uploadFile(imageFile, path);
+      showSnackBar(context, "Got downloadable url ${downloadUrl}");
 
       // Check if the upload was successful
       if (downloadUrl == null) {
@@ -233,13 +235,24 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<String?> _uploadFile(File file, String path) async {
     try {
+      // Upload file to Firebase Storage
       TaskSnapshot taskSnapshot = await _storage.ref(path).putFile(file);
-      return await taskSnapshot.ref.getDownloadURL();
+      showSnackBar(context, "1");
+
+      // Retrieve download URL
+      String downloadUrl = await taskSnapshot.ref.getDownloadURL();
+      showSnackBar(context, "2");
+
+      // Return the download URL
+      return downloadUrl;
     } catch (e) {
       print("Error uploading file: $e");
+      showSnackBar(context, "Error uploading file: $e");
       return null;
     }
   }
+
+
 
 
 

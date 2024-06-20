@@ -158,16 +158,7 @@ class _UserTileState extends State<UserTile> {
           SizedBox(width: SMASizes.spaceBtwItems),
           Text(widget.text),
           Spacer(),
-          _isFollowingBack
-              ? IconButton(
-            icon: Icon(Icons.supervised_user_circle),
-            onPressed: () {
-              // Handle follow back action here
-              _fireStoreServices.followBack(widget.currentUser, widget.otherUser);
-              _showSnackBar(context, 'You followed back ${widget.username}');
-            },
-          )
-              : IconButton(
+          IconButton(
             icon: Icon(Iconsax.add),
             onPressed: () {
               showDialog(context: context, builder: (BuildContext context) {

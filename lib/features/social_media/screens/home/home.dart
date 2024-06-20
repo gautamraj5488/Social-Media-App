@@ -148,6 +148,15 @@ class _YourAppBarState extends State<YourAppBar> {
                 title: Text('User not found'),
               );
             } else {
+
+
+              final data = userSnapshot.data?.data();
+              if (data is! Map<String, dynamic>) {
+                return AppBar(
+                  title: Text('User data is not valid'),
+                );
+              }
+
               Map<String, dynamic> userData =
                   userSnapshot.data!.data() as Map<String, dynamic>;
               String username = userData['username'] ?? '';
