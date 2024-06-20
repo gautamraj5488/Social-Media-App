@@ -242,7 +242,6 @@ class _ProfilePageState extends State<ProfilePage> {
       // Retrieve download URL
       String downloadUrl = await taskSnapshot.ref.getDownloadURL();
       showSnackBar(context, "2");
-
       // Return the download URL
       return downloadUrl;
     } catch (e) {
