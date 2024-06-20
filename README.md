@@ -8,7 +8,6 @@ Welcome to the Social Media App! This app is designed to provide a seamless soci
 - [Usage](#usage)
 - [Dependencies](#dependencies)
 - [Contributing](#contributing)
-- [License](#license)
 
 ## Features
 - **Onboarding**: A beautiful onboarding screen that guides new users through the app features.
