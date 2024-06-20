@@ -5,17 +5,125 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher_string.dart';
 import '../features/authentication/screens/login/login.dart';
 
 
 class FireStoreServices {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
 
   User? getCurrentUser(){
     return _auth.currentUser;
   }
 
+  Future<bool> isDeviceConnected() async{
+    try{
+      await canLaunchUrlString("google.com");
+      return true;
+    } catch(e){
+      return false;
+    }
+  }
+
+  Future<bool> isUsernameInUse(String username) async {
+    try {
+      final result = await _firestore
+          .collection('users')
+          .where('username', isEqualTo: username)
+          .get();
+
+      print("Username Query Result: ${result.docs}");
+      return result.docs.isNotEmpty;
+    } catch (e) {
+      print("Error checking username: $e");
+      return false; // Return false in case of an error
+    }
+  }
+
+  Future<bool> isEmailInUse(String email) async {
+    try {
+      final result = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .get();
+
+      print("Email Query Result: ${result.docs}");
+      return result.docs.isNotEmpty;
+    } catch (e) {
+      print("Error checking email: $e");
+      return false; // Return false in case of an error
+    }
+  }
+
+  Future<List<DocumentSnapshot>> getSharedPosts(String userId) async {
+    try {
+      // Query shared_posts collection where sharedTo field is equal to userId
+      QuerySnapshot querySnapshot = await _firestore
+          .collection('shared_posts')
+          .where('sharedTo', isEqualTo: userId)
+          .get();
+
+      // Return list of DocumentSnapshots
+      return querySnapshot.docs;
+    } catch (e) {
+      print('Error fetching shared posts: $e');
+      throw e; // Throw error to handle it in calling function
+    }
+  }
+
+
+  Future<int> getUnreadMessageCount(String currentUser, String otherUser) async {
+    DocumentSnapshot userDoc = await _firestore.collection('users').doc(currentUser).get();
+    Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
+
+    if (data['unreadMessages'] == null) {
+      await _firestore.collection('users').doc(currentUser).update({'unreadMessages': {}});
+      return 0;
+    }
+
+    Map<String, dynamic> unreadMessages = data['unreadMessages'] as Map<String, dynamic>;
+    return unreadMessages[otherUser] ?? 0;
+  }
+
+  Future<void> incrementUnreadMessageCount(String receiverId) async {
+    DocumentReference userRef = _firestore.collection('users').doc(receiverId);
+
+    await _firestore.runTransaction((transaction) async {
+      DocumentSnapshot userDoc = await transaction.get(userRef);
+      Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
+
+      Map<String, int> unreadMessages;
+      if (data['unreadMessages'] == null) {
+        unreadMessages = {};
+      } else {
+        unreadMessages = Map<String, int>.from(data['unreadMessages']);
+      }
+
+      unreadMessages[_auth.currentUser!.uid] = (unreadMessages[_auth.currentUser!.uid] ?? 0) + 1;
+      transaction.update(userRef, {'unreadMessages': unreadMessages});
+    });
+  }
+
+  Future<void> resetUnreadMessageCount(String currentUser, String senderId) async {
+    DocumentReference userRef = _firestore.collection('users').doc(currentUser);
+
+    await _firestore.runTransaction((transaction) async {
+      DocumentSnapshot userDoc = await transaction.get(userRef);
+      Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
+
+      Map<String, int> unreadMessages;
+      if (data['unreadMessages'] == null) {
+        unreadMessages = {};
+      } else {
+        unreadMessages = Map<String, int>.from(data['unreadMessages']);
+      }
+
+      unreadMessages[senderId] = 0;
+      transaction.update(userRef, {'unreadMessages': unreadMessages});
+    });
+  }
   // logout(BuildContext context) {
   //   showModalBottomSheet(
   //     context: context,
@@ -107,6 +215,7 @@ class FireStoreServices {
           'followers': followers,
           'requested': requested,
           'requestToConfirm': requestToConfirm,
+          'messageUpdatedAt': FieldValue.serverTimestamp(),
         });
         print("User created successfully");
       } catch (e) {
@@ -230,6 +339,18 @@ class FireStoreServices {
     }
   }
 
+  Future<void> followBack(String currentUserId, String otherUserId) async {
+    // Add the other user to the current user's following list
+    await _firestore.collection('users').doc(currentUserId).update({
+      'following': FieldValue.arrayUnion([otherUserId])
+    });
+
+    // Add the current user to the other user's followers list
+    await _firestore.collection('users').doc(otherUserId).update({
+      'followers': FieldValue.arrayUnion([currentUserId])
+    });
+  }
+
 // Approve a follow request
   Future<void> approveFollowRequest(String recipientId, String senderId) async {
     try {
@@ -323,6 +444,11 @@ class FireStoreServices {
     }
   }
 
+  Future<bool> isFollowing(String currentUserId, String otherUserId) async {
+    DocumentSnapshot doc = await _firestore.collection('users').doc(currentUserId).get();
+    List following = doc['following'];
+    return following.contains(otherUserId);
+  }
   Future<bool> isCurrentUserFriend(String currentUserId, String otherUserId) async {
     try {
       // Get the document of the other user

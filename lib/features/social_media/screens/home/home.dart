@@ -169,7 +169,8 @@ class _YourAppBarState extends State<YourAppBar> {
                         },
                         icon: Icon(Iconsax.activity),
                       ),
-                      requestToConfirmLength!=0?Positioned(
+                      requestToConfirmLength!=0
+                          ?Positioned(
                         top: 1,
                         right: 3,
                         child: Container(
@@ -195,7 +196,7 @@ class _YourAppBarState extends State<YourAppBar> {
                         ),
                       );
                     },
-                    icon: Icon(Iconsax.add),
+                    icon: Icon(Iconsax.document_upload),
                   ),
                 ],
               );

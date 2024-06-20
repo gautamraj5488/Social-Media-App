@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:social_media_app/utils/helpers/helper_fuctions.dart';
 
@@ -21,19 +22,33 @@ class _ChatHomePageState extends State<ChatHomePage> {
   final ChatService _chatService = ChatService();
   final FireStoreServices _fireStoreServices = FireStoreServices();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  Future<void> _refresh() async {
+    setState(() {});
+  }
+
+  @override
+  void initState() {
+    _buildUserList();
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: SMAAppBar(
-        title: Text(
+        title: const Text(
           "Messages",
           style: TextStyle(fontSize: SMASizes.fontSizeLg),
         ),
         showBackArrow: false,
-        actions: [IconButton(onPressed: () {}, icon: Icon(Iconsax.more))],
+        actions: [IconButton(onPressed: () {}, icon: const Icon(Iconsax.more))],
       ),
-      body: _buildUserList(),
+      body: RefreshIndicator(
+        onRefresh: _refresh,
+        child: _buildUserList(),
+      ),
     );
   }
 
@@ -72,7 +87,6 @@ class _ChatHomePageState extends State<ChatHomePage> {
           }
         });
 
-
         // return list view
         return ListView(
           children: usersData
@@ -83,51 +97,17 @@ class _ChatHomePageState extends State<ChatHomePage> {
     );
   }
 
-
-
-  // Widget _buildUserListItem(
-  //     Map<String, dynamic> userData, BuildContext context) {
-  //   final currentUser = _fireStoreServices.getCurrentUser();
-  //
-  //   if (currentUser != null && userData['email'] != currentUser.email) {
-  //     return UserTile(
-  //       text: userData['firstName'] + ' ' + userData['lastName'],
-  //       username: userData['username'],
-  //       currentUser: _auth.currentUser!.uid,
-  //       otherUser: userData['uis'],
-  //       onTap: () {
-  //         Navigator.push(
-  //           context,
-  //           MaterialPageRoute(
-  //             builder: (context) => ChatPage(
-  //               receiverEmail: userData['email'],
-  //               receiverId: userData["uis"],
-  //               receiverName:
-  //                   userData['firstName'] + ' ' + userData['lastName'],
-  //               username: userData['username'],
-  //             ),
-  //           ),
-  //         );
-  //       },
-  //     );
-  //   } else {
-  //     return Container();
-  //   }
-  // }
-
-  Widget _buildUserListItem(
-      Map<String, dynamic> userData,
-      BuildContext context,
-      ) {
+  Widget _buildUserListItem(Map<String, dynamic> userData, BuildContext context) {
     final currentUser = _fireStoreServices.getCurrentUser();
+
 
     if (currentUser != null && userData['email'] != currentUser.email) {
       return FutureBuilder<DocumentSnapshot>(
-        future: _fireStoreServices.getUserData(userData['uis']), // Assuming this method retrieves the user data including the timestamp
+        future: _fireStoreServices.getUserData(userData['uis']),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(
-              child: Image.asset("assets/gifs/loading.gif"),
+            return const Center(
+              child: Text("Error Loading Data!"),
             );
           }
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -135,8 +115,11 @@ class _ChatHomePageState extends State<ChatHomePage> {
               child: Image.asset("assets/gifs/loading.gif"),
             );
           }
-
-          // Extract timestamp data from the user data
+          if (!snapshot.hasData || !snapshot.data!.exists) {
+            return const Center(
+              child: Text("No one to Chat"),
+            );
+          }
           Timestamp timestamp = snapshot.data!.get('messageUpdatedAt');
 
           return UserTile(
@@ -144,7 +127,7 @@ class _ChatHomePageState extends State<ChatHomePage> {
             username: userData['username'],
             currentUser: _auth.currentUser!.uid,
             otherUser: userData['uis'],
-            timestamp: timestamp, // Pass the timestamp to the UserTile
+            timestamp: timestamp,
             onTap: () {
               Navigator.push(
                 context,
@@ -165,8 +148,8 @@ class _ChatHomePageState extends State<ChatHomePage> {
       return Container();
     }
   }
-
 }
+
 
 class UserTile extends StatefulWidget {
   final String text;
@@ -175,6 +158,7 @@ class UserTile extends StatefulWidget {
   final String currentUser;
   final String otherUser;
   final Timestamp timestamp;
+
   UserTile({
     super.key,
     required this.text,
@@ -201,6 +185,19 @@ class _UserTileState extends State<UserTile> {
 
   bool isFriend = false;
   bool isRequested = false;
+
+  int unreadMessageCount = 0;
+  Future<void> fetchUnreadMessageCount() async {
+    try {
+      int count = await _fireStoreServices.getUnreadMessageCount(widget.currentUser, widget.otherUser);
+      setState(() {
+        unreadMessageCount = count;
+      });
+    } catch (e) {
+      print('Error fetching unread message count: $e');
+      // Handle error as per your application's requirement
+    }
+  }
 
   Future<void> checkIfRequested() async {
     bool requested = await _fireStoreServices.isCurrentUserRequested(
@@ -255,99 +252,115 @@ class _UserTileState extends State<UserTile> {
     final dark = SMAHelperFunctions.isDarkMode(context);
     return isRequested || isFriend
         ? GestureDetector(
-            onTap: widget.onTap,
-            child: Container(
-              decoration: BoxDecoration(
-                color:
-                    dark ? SMAColors.darkContainer : SMAColors.lightContainer,
-                borderRadius: BorderRadius.circular(12),
+        onTap: widget.onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color:
+            dark ? SMAColors.darkContainer : SMAColors.lightContainer,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.symmetric(
+              horizontal: SMASizes.defaultSpace, vertical: SMASizes.xs),
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              const Icon(Iconsax.user),
+              const SizedBox(
+                width: SMASizes.spaceBtwItems,
               ),
-              margin: EdgeInsets.symmetric(
-                  horizontal: SMASizes.defaultSpace, vertical: SMASizes.xs),
-              padding: EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Icon(Iconsax.user),
-                  SizedBox(
-                    width: SMASizes.spaceBtwItems,
-                  ),
-                  SizedBox(
-                    width: MediaQuery.of(context).size.width * 0.5,
-                    child: Text(
+              SizedBox(
+                width: isRequested? MediaQuery.of(context).size.width * 0.42 : MediaQuery.of(context).size.width * 0.5,
+                child: Row(
+                  children: [
+                    Text(
                       widget.text,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  Spacer(),
-                  isFriend
-                      ? SizedBox.shrink()
-                      : IconButton(
-                          onPressed: () {
-                            isRequested
-                                ? showDialog(
-                                    context: context,
-                                    builder: (BuildContext context) {
-                                      return AlertDialog(
-                                        title: Text(
-                                            "Do you want to cancel friend request"),
-                                        //content: Text("Do you want to send friend request to : ${widget.text}"),
-                                        actions: <Widget>[
-                                          TextButton(
-                                            onPressed: () {
-                                              Navigator.of(context).pop();
-                                            },
-                                            child: Text("No"),
-                                          ),
-                                          TextButton(
-                                            onPressed: () {
-                                              setState(() {
-                                                unsendFollowRequest();
-                                                showSnackBar(context,
-                                                    'Follow Request Reverted');
-                                                Navigator.of(context).pop();
-                                              });
-                                            },
-                                            child: Text("Yes"),
-                                          ),
-                                        ],
-                                      );
-                                    })
-                                : showDialog(
-                                    context: context,
-                                    builder: (BuildContext context) {
-                                      return AlertDialog(
-                                        title: Text(
-                                            "Do you want to send friend request to : ${widget.text}"),
-                                        //content: Text("Do you want to send friend request to : ${widget.text}"),
-                                        actions: <Widget>[
-                                          TextButton(
-                                            onPressed: () {
-                                              Navigator.of(context).pop();
-                                            },
-                                            child: Text("No"),
-                                          ),
-                                          TextButton(
-                                            onPressed: () {
-                                              setState(() {
-                                                sendFollowRequest();
-                                                showSnackBar(context,
-                                                    'Follow Request Sent');
-                                                Navigator.of(context).pop();
-                                              });
-                                            },
-                                            child: Text("Yes"),
-                                          ),
-                                        ],
-                                      );
-                                    });
-                          },
-                          icon: Icon(
-                            isRequested ? Iconsax.verify : Iconsax.add_circle,
-                          ),
-                        )
-                ],
+                    unreadMessageCount != 0
+                        ? Container(
+                      padding: EdgeInsets.all(4),
+                      margin: EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.red
+                      ),
+                      child: unreadMessageCount < 9 ? Text(unreadMessageCount.toString()) : Text("9+"),
+                    )
+                        : SizedBox.shrink()
+                  ],
+                ),
               ),
-            ))
-        : SizedBox.shrink();
+              const Spacer(),
+              isFriend
+                  ? const SizedBox.shrink()
+                  : TextButton(
+                onPressed: () {
+                  isRequested
+                      ? showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: Text(
+                              "Do you want to cancel friend request"),
+                          //content: Text("Do you want to send friend request to : ${widget.text}"),
+                          actions: <Widget>[
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                              },
+                              child: Text("No"),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  unsendFollowRequest();
+                                  showSnackBar(context,
+                                      'Follow Request Reverted');
+                                  Navigator.of(context).pop();
+                                });
+                              },
+                              child: Text("Yes"),
+                            ),
+                          ],
+                        );
+                      })
+                      : showDialog(
+                      context: context,
+                      builder: (BuildContext context) {
+                        return AlertDialog(
+                          title: Text(
+                              "Do you want to send friend request to : ${widget.text}"),
+                          //content: Text("Do you want to send friend request to : ${widget.text}"),
+                          actions: <Widget>[
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                              },
+                              child: Text("No"),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  sendFollowRequest();
+                                  showSnackBar(context,
+                                      'Follow Request Sent');
+                                  Navigator.of(context).pop();
+                                });
+                              },
+                              child: Text("Yes"),
+                            ),
+                          ],
+                        );
+                      });
+                },
+                child: Text(
+                  isRequested ? "Request Sent" : "Follow",
+                  style: TextStyle(color: isRequested? Colors.grey : Colors.blue),
+                ),
+              )
+            ],
+          ),
+        ))
+        : const SizedBox.shrink();
   }
 }

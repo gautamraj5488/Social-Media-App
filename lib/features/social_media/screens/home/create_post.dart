@@ -82,8 +82,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
   }
 
-  Future<void> _submitPost() async {
 
+  Future<void> _submitPost() async {
     if (_textController.text.isEmpty && _selectedImage == null && _selectedVideo == null && _linkController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please add some content to the post")));
       return;
@@ -108,6 +108,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       videoUrl = await _uploadFile(_selectedVideo!, 'posts/$userId/videos/${DateTime.now().millisecondsSinceEpoch}.mp4');
     }
 
+    // Add the post data to Firestore
     await _firestore.collection('posts').add({
       'text': _textController.text,
       'link': _linkController.text,
@@ -117,6 +118,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       'username': widget.username,
       'name' : widget.name,
       'userId': userId,
+      'likes': 0,
     });
 
     setState(() {
@@ -132,10 +134,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       appBar : SMAAppBar(
         title: const Text('Create Post'),
         actions: [
-          IconButton(
-              icon: const Icon(Iconsax.send),
-              onPressed: _submitPost,
-          ),
+          // TextButton(
+          //     onPressed: (){
+          //       _submitPost();
+          //     },
+          //     child: Text("Upload")
+          // )
         ],
 
       ),
@@ -221,6 +225,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               ],
             ),
             const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                  onPressed: _submitPost,
+                  child: Text("Upload")
+              ),
+            )
           ],
         ),
       ),

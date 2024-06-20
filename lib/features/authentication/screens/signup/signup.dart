@@ -6,12 +6,14 @@ import 'package:iconsax/iconsax.dart';
 import 'package:social_media_app/common/widgets.login_signup/form_divider.dart';
 import 'package:social_media_app/common/widgets.login_signup/social_button.dart';
 import 'package:social_media_app/common/widgets/appbar/appbar.dart';
+import 'package:social_media_app/utils/device/device_utility.dart';
 
 import '../../../../services/firestore.dart';
 import '../../../../utils/constants/colors.dart';
 import '../../../../utils/constants/sizes.dart';
 import '../../../../utils/constants/text_strings.dart';
 import '../../../../utils/helpers/helper_fuctions.dart';
+import '../login/login.dart';
 
 
 class SignUpScreen extends StatefulWidget {
@@ -44,7 +46,113 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   final FireStoreServices _fireStoreServices = FireStoreServices();
+  bool _isLoading = false;
 
+  Future<void> _signUp() async {
+    if (_formKey.currentState?.validate() == true) {
+      showDialog(
+          context: context,
+          builder: (context) {
+            return  Center(child: Image.asset("assets/gifs/loading.gif"));
+          });
+
+      try {
+        // Check if username or email is already in use
+        bool isUsernameTaken = await _fireStoreServices.isUsernameInUse(_usernameController.text.trim());
+        bool isEmailTaken = await _fireStoreServices.isEmailInUse(_emailController.text.trim().toLowerCase());
+
+        print(isUsernameTaken);
+        print(isEmailTaken);
+
+        if (isUsernameTaken) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('The username is already in use.')),
+          );
+          SMADeviceUtils.hideKeyboard(context);
+          return;
+        }
+
+        if (isEmailTaken) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('The email is already in use by another account.')),
+          );
+          SMADeviceUtils.hideKeyboard(context);
+          return;
+        }
+
+        UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+          email: _emailController.text.trim(),
+          password: _passwordController.text,
+        );
+
+        await userCredential.user?.sendEmailVerification();
+
+        await showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: Text('Verify Your Email'),
+              content: Text(
+                  'An email verification link has been sent to your email address. Please verify your email before proceeding.'),
+              actions: <Widget>[
+                TextButton(
+                  child: Text('OK'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            );
+          },
+        );
+
+          await _fireStoreServices.createUser(
+            firstName: _firstNameController.text.trim(),
+            lastName: _lastNameController.text.trim(),
+            username: _usernameController.text.trim(),
+            email: _emailController.text.trim().toLowerCase(),
+            phoneNumber: _phoneNumberController.text.trim(),
+            password: _passwordController.text.trim(),
+            uid: _fireStoreServices.getCurrentUser()!.uid,
+            following: [],
+            followers: [],
+            requested: [],
+            requestToConfirm: [],
+            profilePicture: '',
+            FCMtoken: widget.FCMtoken,
+          );
+
+          _showSnackBar('User created successfully');
+          _clearForm();
+          Navigator.pop(context);
+
+      } on FirebaseAuthException catch (e) {
+        Navigator.pop(context);
+        if (e.code == 'email-already-in-use') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('The email is already in use by another account.')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${e.message}')),
+          );
+        }
+      } catch (e) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error creating user: $e')),
+        );
+      }
+    }
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
   @override
   Widget build(BuildContext context) {
     final dark = SMAHelperFunctions.isDarkMode(context);
@@ -224,71 +332,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () async {
-                          showDialog(
-                              context: context,
-                              builder: (context){
-                                return const Center(
-                                    child: CircularProgressIndicator()
-                                );
-                              }
-                          );
-                          if (_formKey.currentState?.validate() == true) {
-                            try {
-                              // Try to create the user with email and password
-                              await FirebaseAuth.instance.createUserWithEmailAndPassword(
-                                email: _emailController.text,
-                                password: _passwordController.text,
-                              );
-
-                              // Save user data to Firestore
-                              await _fireStoreServices.createUser(
-                                firstName: _firstNameController.text.trim().capitalizeFirst!.removeAllWhitespace,
-                                lastName: _lastNameController.text.trim().capitalizeFirst!.removeAllWhitespace,
-                                username: _usernameController.text.trim(),
-                                email: _emailController.text.trim().toLowerCase(),
-                                phoneNumber: _phoneNumberController.text.trim(),
-                                password: _passwordController.text.trim(),
-                                uid: _fireStoreServices.getCurrentUser()!.uid,
-                                following: [],
-                                followers: [],
-                                requested: [],
-                                requestToConfirm: [],
-                                profilePicture: '', FCMtoken: widget.FCMtoken,
-                              );
-                              // Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context)=>AuthPage()), (Route<dynamic> route) => false);
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('User created successfully, Please Login to continue')),
-                              );
-                              _clearForm();
-                              Navigator.pop(context);
-
-                            } on FirebaseAuthException catch (e) {
-                              // Check if the email is already in use
-                              Navigator.pop(context);
-                              if (e.code == 'email-already-in-use') {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('The email is already in use by another account.')),
-                                );
-                              } else {
-                                // Show other FirebaseAuthException error messages
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Error: ${e.message}')),
-                                );
-                              }
-                            } catch (e) {
-                              // Handle any other errors
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Error creating user: $e')),
-                              );
-                            }
-                          } else{
-                            Navigator.pop(context);
-                          }
-                        },
-                        child: const Text(SMATexts.createAccount),
+                        onPressed: _isLoading ? null : () => _signUp(),
+                        child: _isLoading
+                            ? const CircularProgressIndicator(
+                          valueColor:
+                          AlwaysStoppedAnimation<Color>(
+                              Colors.white),
+                        )
+                            : const Text(SMATexts.createAccount),
                       ),
                     ),
                   ],

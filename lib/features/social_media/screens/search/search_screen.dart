@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:social_media_app/features/social_media/screens/profile/profile_page.dart';
 import 'package:social_media_app/utils/helpers/helper_fuctions.dart';
+import 'package:social_media_app/utils/theme/custom_theme/text_theme.dart';
 
 import '../../../../common/widgets/appbar/appbar.dart';
 import '../../../../services/chat/chat_service.dart';
@@ -55,6 +56,10 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
+  Future<void> _refresh() async {
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -74,28 +79,31 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              itemCount: _filteredUserList.length,
-              itemBuilder: (context, index) {
-                return StreamBuilder(
-                  stream: _chatService.getUsersStream(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Image.asset("assets/gifs/loading.gif"),
-                      );
-                    }
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Center(
-                        child: Image.asset("assets/gifs/loading.gif"),
-                      );
-                    }
-                    // return list view
-                    return _buildUserListItem(_filteredUserList[index], context); // ListView
-                  },
-                );
-                //return _buildUserListItem(_filteredUserList[index], context);
-              },
+            child: RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView.builder(
+                itemCount: _filteredUserList.length,
+                itemBuilder: (context, index) {
+                  return StreamBuilder(
+                    stream: _chatService.getUsersStream(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Image.asset("assets/gifs/loading.gif"),
+                        );
+                      }
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return Center(
+                          child: Image.asset("assets/gifs/loading.gif"),
+                        );
+                      }
+                      // return list view
+                      return _buildUserListItem(_filteredUserList[index], context); // ListView
+                    },
+                  );
+                  //return _buildUserListItem(_filteredUserList[index], context);
+                },
+              ),
             ),
           ),
         ],
@@ -194,12 +202,27 @@ class _UserTileState extends State<UserTile> {
   @override
   void initState() {
     super.initState();
-    checkIfRequested();
-    isCurrentUserFriend();
+    preloadFriendAndRequestStatus();
   }
 
   bool isFriend = false;
-  bool isRequested = true;
+  bool isRequested = false;
+
+  Future<void> preloadFriendAndRequestStatus() async {
+    try {
+      List<bool> results = await Future.wait([
+        _fireStoreServices.isCurrentUserRequested(widget.currentUser, widget.otherUser),
+        _fireStoreServices.isCurrentUserFriend(widget.currentUser, widget.otherUser),
+      ]);
+
+      setState(() {
+        isRequested = results[0];
+        isFriend = results[1];
+      });
+    } catch (e) {
+      print("Error loading friend and request status: $e");
+    }
+  }
 
   Future<void> checkIfRequested() async {
     bool requested = await _fireStoreServices.isCurrentUserRequested(
@@ -249,6 +272,7 @@ class _UserTileState extends State<UserTile> {
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     final dark = SMAHelperFunctions.isDarkMode(context);
@@ -270,16 +294,16 @@ class _UserTileState extends State<UserTile> {
                 width: SMASizes.spaceBtwItems,
               ),
               SizedBox(
-                width: MediaQuery.of(context).size.width * 0.5,
+                width: isRequested? MediaQuery.of(context).size.width * 0.42 : MediaQuery.of(context).size.width * 0.5,
                 child: Text(
                   widget.text,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Spacer(),
+              // Spacer(),
               isFriend
                   ? SizedBox.shrink()
-                  : IconButton(
+                  : TextButton(
                 onPressed: () {
                   isRequested
                       ? showDialog(
@@ -339,8 +363,9 @@ class _UserTileState extends State<UserTile> {
                         );
                       });
                 },
-                icon: Icon(
-                  isRequested ? Iconsax.verify : Iconsax.add_circle,
+                child: Text(
+                  isRequested ? "Request Sent" : "Follow",
+                  style: TextStyle(color: isRequested? Colors.grey : Colors.blue),
                 ),
               )
             ],

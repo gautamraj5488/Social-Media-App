@@ -13,10 +13,10 @@ import '../../../../utils/constants/sizes.dart';
 class ActivityPage extends StatefulWidget {
   ActivityPage({super.key});
   @override
-  State<ActivityPage> createState() => _ChatHomePageState();
+  State<ActivityPage> createState() => _ActivityPageState();
 }
 
-class _ChatHomePageState extends State<ActivityPage> {
+class _ActivityPageState extends State<ActivityPage> {
   final ChatService _chatService = ChatService();
   final FireStoreServices _fireStoreServices = FireStoreServices();
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -30,14 +30,15 @@ class _ChatHomePageState extends State<ActivityPage> {
           "Activity",
           style: TextStyle(fontSize: SMASizes.fontSizeLg),
         ),
-
         leading: IconButton(
-            icon: Icon (Iconsax.arrow_left,color: dark ? SMAColors.light :SMAColors.dark,),
+          icon: Icon(
+            Iconsax.arrow_left,
+            color: dark ? SMAColors.light : SMAColors.dark,
+          ),
           onPressed: () {
             Navigator.pop(context);
           },
         ),
-        //actions: [IconButton(onPressed: () {}, icon: Icon(Iconsax.more))],
       ),
       body: _buildUserList(),
     );
@@ -82,10 +83,15 @@ class _ChatHomePageState extends State<ActivityPage> {
                 }
 
                 final userData = userSnapshot.data!;
-                final name = userData['firstName']+" "+userData['lastName'] ?? 'No name';
+                final name = userData['firstName'] + " " + userData['lastName'] ?? 'No name';
                 final username = userData['username'] ?? 'No username';
 
-                return UserTile(text: name, username: username, currentUser: _auth.currentUser!.uid, otherUser: userData['uis'],);
+                return UserTile(
+                  text: name,
+                  username: username,
+                  currentUser: _auth.currentUser!.uid,
+                  otherUser: userData['uid'],
+                );
               },
             );
           },
@@ -100,11 +106,14 @@ class UserTile extends StatefulWidget {
   final String text;
   final String username;
   final String currentUser;
-  final otherUser;
+  final String otherUser;
+
   UserTile({
     super.key,
     required this.text,
-    required this.username, required this.currentUser, required this.otherUser,
+    required this.username,
+    required this.currentUser,
+    required this.otherUser,
   });
 
   @override
@@ -113,16 +122,21 @@ class UserTile extends StatefulWidget {
 
 class _UserTileState extends State<UserTile> {
   final FireStoreServices _fireStoreServices = FireStoreServices();
-
   final ChatService _chatService = ChatService();
+  bool _isFollowingBack = false;
 
   @override
   void initState() {
     super.initState();
+    _checkIfFollowingBack();
   }
 
+  Future<void> _checkIfFollowingBack() async {
+    _isFollowingBack = await _fireStoreServices.isFollowing(widget.currentUser, widget.otherUser);
+    setState(() {});
+  }
 
-  void showSnackBar(BuildContext context, String message) {
+  void _showSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
@@ -136,42 +150,49 @@ class _UserTileState extends State<UserTile> {
         color: dark ? SMAColors.darkContainer : SMAColors.lightContainer,
         borderRadius: BorderRadius.circular(12),
       ),
-      margin: EdgeInsets.symmetric(
-          horizontal: SMASizes.defaultSpace, vertical: SMASizes.xs),
+      margin: EdgeInsets.symmetric(horizontal: SMASizes.defaultSpace, vertical: SMASizes.xs),
       padding: EdgeInsets.all(20),
       child: Row(
         children: [
           Icon(Iconsax.user),
-          SizedBox(
-            width: SMASizes.spaceBtwItems,
-          ),
+          SizedBox(width: SMASizes.spaceBtwItems),
           Text(widget.text),
           Spacer(),
-          IconButton(onPressed: (){
-            showDialog(context: context, builder: (BuildContext context){
-              return AlertDialog(
-                title: Text("Do you want to accept friend request"),
-                //content: Text("Do you want to send friend request to : ${widget.text}"),
-                actions: <Widget>[
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                    child: Text("No"),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      _fireStoreServices.approveFollowRequest(widget.currentUser, widget.otherUser);
-                      showSnackBar(context, 'Follow Request Accepted');
-                      Navigator.of(context).pop();
-                    },
-                    child: Text("Yes"),
-                  ),
-                ],
-              );
-            });
-          }, icon: Icon(Iconsax.add))
-
+          _isFollowingBack
+              ? IconButton(
+            icon: Icon(Icons.supervised_user_circle),
+            onPressed: () {
+              // Handle follow back action here
+              _fireStoreServices.followBack(widget.currentUser, widget.otherUser);
+              _showSnackBar(context, 'You followed back ${widget.username}');
+            },
+          )
+              : IconButton(
+            icon: Icon(Iconsax.add),
+            onPressed: () {
+              showDialog(context: context, builder: (BuildContext context) {
+                return AlertDialog(
+                  title: Text("Do you want to accept the follow request?"),
+                  actions: <Widget>[
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      child: Text("No"),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        _fireStoreServices.approveFollowRequest(widget.currentUser, widget.otherUser);
+                        _showSnackBar(context, 'Follow Request Accepted');
+                        Navigator.of(context).pop();
+                      },
+                      child: Text("Yes"),
+                    ),
+                  ],
+                );
+              });
+            },
+          ),
         ],
       ),
     );

@@ -1,5 +1,10 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:social_media_app/services/firestore.dart';
 
 import '../../utils/helpers/helper_fuctions.dart';
 import 'models/message.dart';
@@ -8,6 +13,7 @@ class ChatService{
 
   final FirebaseFirestore _firestore =  FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FireStoreServices _fireStoreServices = FireStoreServices();
 
   Future<List<Map<String, dynamic>>> getUsersList() async {
     try {
@@ -53,6 +59,7 @@ class ChatService{
 
 
 
+
   Future<void> sendMessage(String receiverID, String message) async {
     final String currentUserID = _auth.currentUser!.uid;
     final String currentUserEmail = _auth.currentUser!.email!;
@@ -82,6 +89,7 @@ class ChatService{
     msgId = newMessageRef.id;
 
     await newMessageRef.update({'msgId': msgId});
+    await _fireStoreServices.incrementUnreadMessageCount(receiverID);
   }
 
 
@@ -116,7 +124,6 @@ class ChatService{
 
 
 
-
   Stream<QuerySnapshot> getMessages (String userID, otherUserID) {
     List<String> ids = [userID, otherUserID];
     ids.sort();
@@ -128,6 +135,7 @@ class ChatService{
         .orderBy("timestamp", descending: false)
         .snapshots();
   }
+
 
 
 }

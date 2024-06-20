@@ -8,9 +8,9 @@ class UserProfile {
   final String confirmPassword;
   final String uid;
   final String FCMtoken;
+  final String profilePic; // Add this field
 
   UserProfile({
-    required this.FCMtoken,
     required this.firstName,
     required this.lastName,
     required this.username,
@@ -19,5 +19,8 @@ class UserProfile {
     required this.password,
     required this.confirmPassword,
     required this.uid,
+    required this.FCMtoken,
+    required this.profilePic, // Initialize this in the constructor
   });
+
 }

@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:social_media_app/common/widgets/appbar/appbar.dart';
 import 'package:social_media_app/features/social_media/screens/chat/chat_home.dart';
@@ -20,6 +23,7 @@ import 'package:video_player/video_player.dart';
 import '../../../../services/chat/chat_service.dart';
 import '../../../../services/firestore.dart';
 import '../../../../utils/constants/sizes.dart';
+import '../home/comments.dart';
 import '../home/models/post_model.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -38,11 +42,15 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final FireStoreServices _fireStoreServices = FireStoreServices();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   late Future<DocumentSnapshot> _userDataFuture;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   List<Post> posts = [];
   bool isLoading = true;
+  Map<String, dynamic>? userData;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  User? user;
+
 
   Future<void> loadCachedPosts() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -87,6 +95,31 @@ class _ProfilePageState extends State<ProfilePage> {
     fetchPosts();
     checkIfRequested();
     isCurrentUserFriend();
+    fetchUserData();
+    _getCurrentUser();
+  }
+
+  void _getCurrentUser() {
+    user = _auth.currentUser;
+    if (user == null) {
+      // Show a message or handle the scenario where user is null
+      print("User is not authenticated.");
+    } else {
+      print("User is authenticated: ${user!.uid}");
+    }
+  }
+
+  Future<void> fetchUserData() async {
+    try {
+      DocumentSnapshot snapshot = await _firestore.collection('users').doc(widget.uid).get();
+      if (snapshot.exists) {
+        setState(() {
+          userData = snapshot.data() as Map<String, dynamic>;
+        });
+      }
+    } catch (e) {
+      print('Error fetching user data: $e');
+    }
   }
 
   Route _createRoute(UserProfile userProfile) {
@@ -161,6 +194,56 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> uploadProfilePicture(File imageFile) async {
+    // Check if the user is authenticated
+    if (user == null) {
+      print("User is not authenticated.");
+      showSnackBar(context, "User not authenticated. Please log in.");
+      return;
+    }
+
+    try {
+      // Get the user ID
+      String userId = user!.uid;
+      print("Starting upload for user: $userId");
+
+      // Define the storage path
+      String path = 'profile_pictures/$userId/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      print("Storage reference: $path");
+
+      // Upload the file
+      String? downloadUrl = await _uploadFile(imageFile, path);
+
+      // Check if the upload was successful
+      if (downloadUrl == null) {
+        print("Upload failed.");
+        showSnackBar(context, "Error uploading profile picture.");
+        return;
+      }
+
+      // Update the user's Firestore document with the new profile picture URL
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({'profilePic': downloadUrl});
+      print("Profile picture uploaded successfully: $downloadUrl");
+      showSnackBar(context, "Profile picture uploaded successfully.");
+    } catch (e) {
+      print("Error uploading profile picture: $e");
+      showSnackBar(context, "Error uploading profile picture: $e");
+    }
+  }
+
+  Future<String?> _uploadFile(File file, String path) async {
+    try {
+      TaskSnapshot taskSnapshot = await _storage.ref(path).putFile(file);
+      return await taskSnapshot.ref.getDownloadURL();
+    } catch (e) {
+      print("Error uploading file: $e");
+      return null;
+    }
+  }
+
+
+
+
   void showSnackBar(BuildContext context, String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
@@ -214,38 +297,19 @@ class _ProfilePageState extends State<ProfilePage> {
                     password: userData['password'],
                     uid: userData['uis'],
                     confirmPassword: userData['password'],
-                    FCMtoken: userData['FCMtoken'] ?? '',
+                    FCMtoken: userData['FCMtoken'] ?? '', profilePic: '',
                   );
+
 
                   return userData['uis'] == _auth.currentUser!.uid
                       ? IconButton(
                           onPressed: () {
-                            print("1");
-                            print(userData['FCMtoken']);
                             Navigator.of(context)
                                 .push(_createRoute(userProfile));
                           },
                           icon: const Icon(Iconsax.setting),
                         )
-                      : isRequested? SizedBox.shrink(): IconButton(onPressed: (){
-                    setState(() {
-                      Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => ChatPage(
-                                receiverEmail:
-                                userData['email'],
-                                receiverId:
-                                userData['uis'],
-                                receiverName: userData[
-                                'firstName'] +
-                                    ' ' +
-                                    userData['lastName'],
-                                username:
-                                userData['username'],
-                              )));
-                    });
-                  }, icon: Icon(Iconsax.message));
+                      : SizedBox.shrink();
                 }
               },
             ),
@@ -265,6 +329,15 @@ class _ProfilePageState extends State<ProfilePage> {
               if (userData == null) {
                 return const Center(child: Text("User data not found"));
               }
+
+              ImageProvider _getImageProvider() {
+                if (userData.containsKey('profilePic') && userData['profilePic'].isNotEmpty) {
+                  return NetworkImage(userData['profilePic']);
+                } else {
+                  return AssetImage('assets/user.png');
+                }
+              }
+
               return SafeArea(
                   child: Padding(
                 padding: const EdgeInsets.all(SMASizes.md),
@@ -280,57 +353,41 @@ class _ProfilePageState extends State<ProfilePage> {
                           children: [
                             CircleAvatar(
                               radius: 50,
-                              backgroundImage: const AssetImage(
-                                  'assets/user.png'), // Default placeholder image
-                              child: CachedNetworkImage(
-                                imageUrl: userData['profilePic'],
-                                imageBuilder: (context, imageProvider) =>
-                                    CircleAvatar(
-                                  radius: 50,
-                                  backgroundImage: imageProvider,
+                              backgroundImage:  _getImageProvider()
+                            ),
+                            userData['uis'] == _auth.currentUser!.uid
+                                ? Positioned(
+                              bottom: 2,
+                              right: 2,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.blue,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 2),
                                 ),
-                                placeholder: (context, url) =>
-                                    const CircleAvatar(
-                                  radius: 50,
-                                  backgroundImage:
-                                      AssetImage('assets/user.png'),
-                                ),
-                                errorWidget: (context, url, error) =>
-                                    const CircleAvatar(
-                                  radius: 50,
-                                  backgroundImage:
-                                      AssetImage('assets/user.png'),
+                                child: IconButton(
+                                  onPressed: ()async {
+                                    final picker = ImagePicker();
+                                    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+                                    if (pickedFile != null) {
+                                      File file = File(pickedFile.path);
+                                      await uploadProfilePicture(file);
+                                    }
+                                  },
+                                  icon: const Icon(
+                                    Iconsax.edit,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                  padding: const EdgeInsets.all(4), // Smaller padding
+                                  constraints: const BoxConstraints(
+                                      minWidth: 28,
+                                      minHeight: 28), // Constraints to make it smaller
                                 ),
                               ),
-                            ),
-                            userData['profilePic'] == ''
-                                ? Positioned(
-                                    bottom: 2,
-                                    right: 2,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                            color: Colors.white, width: 2),
-                                      ),
-                                      child: IconButton(
-                                        onPressed: () {},
-                                        icon: const Icon(
-                                          Iconsax.edit,
-                                          color: Colors.white,
-                                          size: 16,
-                                        ),
-                                        padding: const EdgeInsets.all(
-                                            4), // Smaller padding
-                                        constraints: const BoxConstraints(
-                                            minWidth: 28,
-                                            minHeight:
-                                                28), // Constraints to make it smaller
-                                      ),
-                                    ),
-                                  )
-                                : const SizedBox.shrink()
+                            )
+                                : const SizedBox.shrink(),
                           ],
                         ),
                         FollowFollowing(
@@ -371,7 +428,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                 children: [
                                   GestureDetector(
                                     onTap: () {
-                                      (isRequested && isFriend)
+                                      (isFriend)
                                           ? showDialog(
                                               context: context,
                                               builder: (BuildContext context) {
@@ -413,7 +470,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                             borderRadius: BorderRadius.circular(
                                                 SMASizes.cardRadiusMd),
                                             color: Colors.grey.shade400),
-                                        child: Text((isRequested && isFriend) ? "Unfollow":"Requested",
+                                        child: Text((isFriend) ? "Unfollow":"Requested",
                                             style: SMATextTheme
                                                 .darkTextTheme.bodyLarge)),
                                   ),
@@ -450,7 +507,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                             color: Colors.blue),
                                         child: Text("Message",
                                             style: SMATextTheme
-                                                .darkTextTheme.bodyLarge)),
+                                                .darkTextTheme.bodyLarge)
+                                    ),
                                   ),
                                 ],
                               )
@@ -483,7 +541,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           ? SMATextTheme.darkTextTheme.headlineSmall
                           : SMATextTheme.lightTextTheme.headlineSmall,
                     ),
-                    posts.length != 0
+                    isFriend || userData['uis'] == _auth.currentUser!.uid
+                    ? posts.length != 0
                         ? Expanded(
                             child: GridView.builder(
                               itemCount: posts.length,
@@ -492,11 +551,17 @@ class _ProfilePageState extends State<ProfilePage> {
                                 crossAxisCount: 2,
                               ),
                               itemBuilder: (context, index) {
-                                return PostWidget(post: posts[index]);
+                                return GestureDetector(
+                                  onTap: (){
+                                    Navigator.push(context, MaterialPageRoute(builder: (context)=> CommentSectionPage(post: posts[index],)));
+                                  },
+                                  child: PostWidget(post: posts[index]),
+                                );
                               },
                             ),
                           )
                         : const Expanded(child: Center(child: Text("No Posts")))
+                        : const Expanded(child: Center(child: Text("Please Follow to see Post")))
                   ],
                 ),
               ));

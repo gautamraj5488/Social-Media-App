@@ -11,6 +11,7 @@ class Post {
   final Timestamp createdAt;
   final String name;
   final String profilePic;
+  final int likes;
 
   Post({
     required this.uid,
@@ -22,7 +23,8 @@ class Post {
     required this.videoUrl,
     required this.createdAt,
     required this.name,
-    required this.profilePic
+    required this.profilePic,
+    required this.likes,
   });
 
 
@@ -38,7 +40,7 @@ class Post {
       imageUrl: data['imageUrl'] ?? '',
       videoUrl: data['videoUrl'] ?? '',
       createdAt: data['createdAt'] ?? Timestamp.now(),
-      name: data['name'] ?? '', profilePic: data['profilePic'] ?? '',
+      name: data['name'] ?? '', profilePic: data['profilePic'] ?? '', likes: data['likes'],
     );
   }
 
@@ -53,7 +55,7 @@ class Post {
       videoUrl: json['videoUrl'] ?? '',
       createdAt: Timestamp.fromMillisecondsSinceEpoch(json['createdAt'] ?? DateTime.now().millisecondsSinceEpoch),
       name: json['name'] ?? '',
-      profilePic: json['profilePic'] ?? '',
+      profilePic: json['profilePic'] ?? '', likes: json['likes'],
     );
   }
 
@@ -69,6 +71,7 @@ class Post {
       'createdAt': createdAt.millisecondsSinceEpoch,
       'name': name,
       'profilePic': profilePic,
+      'likes':likes,
     };
   }
 }

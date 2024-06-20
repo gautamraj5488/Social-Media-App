@@ -2,10 +2,12 @@
 
 import 'dart:async';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:internet_connection_checker/internet_connection_checker.dart';
 import 'package:social_media_app/navigation_menu.dart';
 import 'package:social_media_app/services/firestore.dart';
 import 'package:social_media_app/utils/device/device_utility.dart';
@@ -38,7 +40,6 @@ class _SMALoginFormState extends State<SMALoginForm> {
 
   Future<void> _handleForgotPassword(String email) async {
     try {
-
       SMAHelperFunctions.showSnackBar(context,"Password reset email sent");
       print('Password reset email sent');
     } catch (e) {
@@ -74,7 +75,36 @@ class _SMALoginFormState extends State<SMALoginForm> {
     }
   }
 
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  // showDialogBox() => showCupertinoDialog<String>(
+  //   context: context,
+  //   builder: (BuildContext context) => CupertinoAlertDialog(
+  //     title: const Text('No Connection'),
+  //     content: const Text('Please check your internet connectivity'),
+  //     actions: <Widget>[
+  //       TextButton(
+  //         onPressed: () async {
+  //           Navigator.pop(context, 'Cancel');
+  //           setState(() => isAlertSet = false);
+  //           isDeviceConnected =
+  //           await InternetConnectionChecker().hasConnection;
+  //           if (!isDeviceConnected && isAlertSet == false) {
+  //             showDialogBox();
+  //             setState(() => isAlertSet = true);
+  //           }
+  //         },
+  //         child: const Text('OK'),
+  //       ),
+  //     ],
+  //   ),
+  // );
+
   void signUserIn() async {
+    SMADeviceUtils.hideKeyboard(context);
     if (_formKey.currentState?.validate() != true) {
       SMADeviceUtils.vibrate(Duration(milliseconds: 500));
       return;
@@ -87,58 +117,68 @@ class _SMALoginFormState extends State<SMALoginForm> {
     //   return;
     // }
 
-    try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: emailController.text.trim(),
-        password: passwordController.text.trim(),
-      ).then((value){
-        _fireStoreServices.updateUserPasswordFromLogin(password: passwordController.text.trim(), uid: _auth.currentUser!.uid);
-        _fireStoreServices.updateFCMtoken(FCMtoken: widget.FCMtoken, uid: _auth.currentUser!.uid);
-      });
-      SMAHelperFunctions.showSnackBar(context,"Signed in successfully");
-      _hideLoadingDialog();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => Navigation()),
-      );
-    } on FirebaseAuthException catch (e) {
-      _hideLoadingDialog();
+    _showLoadingDialog();
 
-      String errorMessage;
-      switch (e.code) {
-        case 'user-not-found':
-          errorMessage = 'No user found for that email.';
-          SMADeviceUtils.vibrate(Duration(milliseconds: 100));
-          break;
-        case 'wrong-password':
-          errorMessage = 'Wrong password provided.';
-          SMADeviceUtils.vibrate(Duration(milliseconds: 500));
-          break;
-        case 'invalid-email':
-          errorMessage = 'Invalid email address.';
-          SMADeviceUtils.vibrate(Duration(milliseconds: 500));
-          break;
-        case 'user-disabled':
-          errorMessage = 'User has been disabled.';
-          SMADeviceUtils.vibrate(Duration(milliseconds: 500));
-          break;
-        case 'invalid-credential':
-          errorMessage = 'The supplied auth credential is incorrect';
-          SMADeviceUtils.vibrate(Duration(milliseconds: 500));
-          break;
-        default:
-          errorMessage = 'An unknown error occurred.';
-          SMADeviceUtils.vibrate(Duration(milliseconds: 500));
+    if(await SMADeviceUtils.hasInternetConnection()){
+
+      try {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: emailController.text.trim(),
+          password: passwordController.text.trim(),
+        ).then((value){
+          _fireStoreServices.updateUserPasswordFromLogin(password: passwordController.text.trim(), uid: _auth.currentUser!.uid);
+          _fireStoreServices.updateFCMtoken(FCMtoken: widget.FCMtoken, uid: _auth.currentUser!.uid);
+        });
+        SMAHelperFunctions.showSnackBar(context,"Signed in successfully");
+        _hideLoadingDialog();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => Navigation()),
+        );
+      } on FirebaseAuthException catch (e) {
+        _hideLoadingDialog();
+
+        String errorMessage;
+        switch (e.code) {
+          case 'user-not-found':
+            errorMessage = 'No user found for that email.';
+            SMADeviceUtils.vibrate(Duration(milliseconds: 100));
+            break;
+          case 'wrong-password':
+            errorMessage = 'Wrong password provided.';
+            SMADeviceUtils.vibrate(Duration(milliseconds: 500));
+            break;
+          case 'invalid-email':
+            errorMessage = 'Invalid email address.';
+            SMADeviceUtils.vibrate(Duration(milliseconds: 500));
+            break;
+          case 'user-disabled':
+            errorMessage = 'User has been disabled.';
+            SMADeviceUtils.vibrate(Duration(milliseconds: 500));
+            break;
+          case 'invalid-credential':
+            errorMessage = 'The supplied auth credential is incorrect';
+            SMADeviceUtils.vibrate(Duration(milliseconds: 500));
+            break;
+          default:
+            errorMessage = 'An unknown error occurred.';
+            SMADeviceUtils.vibrate(Duration(milliseconds: 500));
+        }
+
+        SMAHelperFunctions.showSnackBar(context,errorMessage);
+      } catch (e) {
+        _hideLoadingDialog();
+        SMAHelperFunctions.showSnackBar(context,'An error occurred. Please try again.');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('An error occurred. Please try again.')),
+        );
+        SMADeviceUtils.vibrate(Duration(milliseconds: 500));
       }
-
-      SMAHelperFunctions.showSnackBar(context,errorMessage);
-    } catch (e) {
+    }
+    else{
       _hideLoadingDialog();
-      SMAHelperFunctions.showSnackBar(context,'An error occurred. Please try again.');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('An error occurred. Please try again.')),
-      );
-      SMADeviceUtils.vibrate(Duration(milliseconds: 500));
+      SMAHelperFunctions.showSnackBar(context, "No internet");
+      SMADeviceUtils.hideKeyboard(context);
     }
   }
 
@@ -239,7 +279,7 @@ class _SMALoginFormState extends State<SMALoginForm> {
             SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                    onPressed: () {
+                    onPressed: () async{
                       signUserIn();
                     },
                     child: const Text(SMATexts.signIn))),

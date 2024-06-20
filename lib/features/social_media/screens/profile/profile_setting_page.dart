@@ -1,13 +1,14 @@
+import 'dart:io';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:local_auth/local_auth.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:social_media_app/common/widgets/appbar/appbar.dart';
 import 'package:social_media_app/features/social_media/screens/profile/user_profile_widget.dart';
-import 'package:social_media_app/common/widgets.login_signup/form_divider.dart';
-import 'package:social_media_app/common/widgets.login_signup/social_button.dart';
-import 'package:social_media_app/utils/theme/custom_theme/text_theme.dart';
 import '../../../../services/firestore.dart';
 import '../../../../utils/constants/colors.dart';
 import '../../../../utils/constants/sizes.dart';
@@ -27,19 +28,9 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  // late final LocalAuthentication = auth;
-  //
-  // bool _supportState = false;
-  //
-  // @override
-  // void initState(){
-  //   super.initState();
-  //   auth = LocalAuthentication();
-  //   auth.isDeviceSupported();
-  // }
-
 
   final FireStoreServices _fireStoreServices = FireStoreServices();
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   final _formKey = GlobalKey<FormState>();
 
@@ -75,9 +66,63 @@ class _SettingsPageState extends State<SettingsPage> {
     _confirmPasswordController.clear();
   }
 
-
-
+  File? _selectedImage;
+  final ImagePicker _picker = ImagePicker();
   bool isEditingEnabled = false;
+
+
+  Future<void> _pickImage() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        _selectedImage = File(pickedFile.path);
+      });
+      await _uploadProfilePicture(_selectedImage!);
+    }
+  }
+
+  Future<void> _uploadProfilePicture(File imageFile) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print("User is not authenticated.");
+      showSnackBar(context, "User not authenticated. Please log in.");
+      return;
+    }
+
+    try {
+      String userId = user.uid;
+      String path = 'profile_pictures/$userId/${DateTime.now().millisecondsSinceEpoch}.jpg';
+      String? downloadUrl = await _uploadFile(imageFile, path);
+
+      if (downloadUrl == null) {
+        print("Upload failed.");
+        showSnackBar(context, "Error uploading profile picture.");
+        return;
+      }
+
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({'profilePic': downloadUrl});
+      print("Profile picture uploaded successfully: $downloadUrl");
+      showSnackBar(context, "Profile picture uploaded successfully.");
+    } catch (e) {
+      print("Error uploading profile picture: $e");
+      showSnackBar(context, "Error uploading profile picture: $e");
+    }
+  }
+
+  Future<String?> _uploadFile(File file, String path) async {
+    try {
+      TaskSnapshot taskSnapshot = await _storage.ref(path).putFile(file);
+      return await taskSnapshot.ref.getDownloadURL();
+    } catch (e) {
+      print("Error uploading file: $e");
+      return null;
+    }
+  }
+  void showSnackBar(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -130,6 +175,24 @@ class _SettingsPageState extends State<SettingsPage> {
                                 });
                               }, icon: Icon(Iconsax.edit,))
                         ],
+                      ),
+                      const SizedBox(height: SMASizes.spaceBtwSections),
+                      Center(
+                        child: GestureDetector(
+                          onTap: () {
+                            if (isEditingEnabled) {
+                              _pickImage();
+                            }
+                          },
+                          child: CircleAvatar(
+                            radius: 50,
+                            backgroundImage: _selectedImage != null
+                                ? FileImage(_selectedImage!)
+                                : widget.userProfile.profilePic.isNotEmpty
+                                ? NetworkImage(widget.userProfile.profilePic)
+                                : AssetImage('assets/user.png') as ImageProvider,
+                          ),
+                        ),
                       ),
                       const SizedBox(height: SMASizes.spaceBtwSections),
                       Form(
@@ -193,13 +256,7 @@ class _SettingsPageState extends State<SettingsPage> {
                               decoration: const InputDecoration(
                                   labelText: SMATexts.email,
                                   prefixIcon: Icon(Iconsax.direct)),
-                              // validator: (value) {
-                              //   if (value == null || value.isEmpty) {
-                              //     return 'Please enter your email';
-                              //   }
-                              //   return null;
-                              // },
-                            ), // TextFormField
+                            ),
                             const SizedBox(height: SMASizes.spaceBtwInputFields),
 
                             /// Phone Number
@@ -307,74 +364,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                       });
 
                                     },
-                                    //   showDialog(
-                                    //       context: context,
-                                    //       builder: (context) {
-                                    //         return const Center(
-                                    //             child: CircularProgressIndicator());
-                                    //       });
-                                    //   if (_formKey.currentState?.validate() == true) {
-                                    //     try {
-                                    //       // Try to create the user with email and password
-                                    //       await FirebaseAuth.instance
-                                    //           .createUserWithEmailAndPassword(
-                                    //         email: _emailController.text,
-                                    //         password: _passwordController.text,
-                                    //       );
-                                    //
-                                    //       // Save user data to Firestore
-                                    //       // await _fireStoreServices.createUser(
-                                    //       //   firstName: _firstNameController.text.trim().capitalizeFirst!.removeAllWhitespace,
-                                    //       //   lastName: _lastNameController.text.trim().capitalizeFirst!.removeAllWhitespace,
-                                    //       //   username: _usernameController.text.trim(),
-                                    //       //   email: _emailController.text.trim().toLowerCase(),
-                                    //       //   phoneNumber: _phoneNumberController.text.trim(),
-                                    //       //   password: _passwordController.text.trim(),
-                                    //       //   uid: _fireStoreServices.getCurrentUser()!.uid,
-                                    //       //   following: [],
-                                    //       //   followers: [],
-                                    //       //   requested: [],
-                                    //       //   requestToConfirm: [],
-                                    //       //   profilePicture: '',
-                                    //       // );
-                                    //       // Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context)=>AuthPage()), (Route<dynamic> route) => false);
-                                    //
-                                    //       ScaffoldMessenger.of(context).showSnackBar(
-                                    //         const SnackBar(
-                                    //             content: Text(
-                                    //                 'User created successfully, Please Login to continue')),
-                                    //       );
-                                    //       _clearForm();
-                                    //       Navigator.pop(context);
-                                    //     } on FirebaseAuthException catch (e) {
-                                    //       // Check if the email is already in use
-                                    //       Navigator.pop(context);
-                                    //       if (e.code == 'email-already-in-use') {
-                                    //         ScaffoldMessenger.of(context).showSnackBar(
-                                    //           const SnackBar(
-                                    //               content: Text(
-                                    //                   'The email is already in use by another account.')),
-                                    //         );
-                                    //       } else {
-                                    //         // Show other FirebaseAuthException error messages
-                                    //         ScaffoldMessenger.of(context).showSnackBar(
-                                    //           SnackBar(
-                                    //               content: Text('Error: ${e.message}')),
-                                    //         );
-                                    //       }
-                                    //     } catch (e) {
-                                    //       // Handle any other errors
-                                    //       Navigator.pop(context);
-                                    //       ScaffoldMessenger.of(context).showSnackBar(
-                                    //         SnackBar(
-                                    //             content:
-                                    //                 Text('Error creating user: $e')),
-                                    //       );
-                                    //     }
-                                    //   } else {
-                                    //     Navigator.pop(context);
-                                    //   }
-                                    // },
                                     child: const Text(SMATexts.updateAccount),
                                   ),
                                 )
@@ -383,10 +372,6 @@ class _SettingsPageState extends State<SettingsPage> {
                           ],
                         ),
                       ),
-                      // const SizedBox(height: SMASizes.spaceBtwSections),
-                      // SMAFormDivider(dark: dark, text: SMATexts.orSignUpWith),
-                      // const SizedBox(height: SMASizes.spaceBtwSections),
-                      // const SMASocialButton(),
                     ],
                   ),
                 ),
