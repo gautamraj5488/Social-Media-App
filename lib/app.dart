@@ -1,14 +1,12 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:social_media_app/utils/theme/theme.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 import 'features/authentication/screens/login/authpage.dart';
+import 'features/authentication/screens/onboarding/onboarding.dart';
+import 'utils/theme/theme.dart';
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key, });
+  const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -16,7 +14,21 @@ class MyApp extends StatelessWidget {
       themeMode: ThemeMode.system,
       theme: SMAAppTheme.lightTheme,
       darkTheme: SMAAppTheme.darkTheme,
-      home: AuthPage(),
+      home: FutureBuilder<bool>(
+        future: _isOnBoardingCompleted(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else {
+            return snapshot.data ?? false ? AuthPage() : OnBoardingScreen();
+          }
+        },
+      ),
     );
+  }
+
+  Future<bool> _isOnBoardingCompleted() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('onBoardingCompleted') ?? false;
   }
 }
