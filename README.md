@@ -87,3 +87,6 @@ Contributions are welcome! Please follow these steps to contribute:
 5. Open a pull request.
 
 Please make sure your code adheres to the coding standards and passes all tests.
+
+
+# Note : Use android device for testing
