@@ -30,52 +30,53 @@ class FeedScreen extends StatefulWidget {
 
 class _FeedScreenState extends State<FeedScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  StreamSubscription<QuerySnapshot>? _subscription;
   List<Post> posts = [];
   bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    fetchPosts();
+    _subscribeToPosts();
   }
 
-  Future<void> fetchPosts() async {
-    try {
-      QuerySnapshot snapshot = await _firestore
-          .collection('posts')
-          .orderBy('createdAt', descending: true)
-          .get();
-      List<Post> postsData =
-          snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
-      if (mounted) {
-        setState(() {
-          posts = postsData;
-          isLoading = false;
-        });
-      }
-    } catch (e) {
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  void _subscribeToPosts() {
+    _subscription = _firestore
+        .collection('posts')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snapshot) {
+      setState(() {
+        posts = snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
+        isLoading = false;
+      });
+    }, onError: (error) {
       if (kDebugMode) {
-        print("Error fetching posts: $e");
+        print("Error fetching posts: $error");
       }
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
-    }
+      setState(() {
+        isLoading = false;
+      });
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: isLoading
-          ? Center(child: Image.asset("assets/gifs/loading.gif"))
+          ? Center(child: CircularProgressIndicator())
           : ListView.builder(
-              itemCount: posts.length,
-              itemBuilder: (context, index) {
-                return PostWidget(post: posts[index]);
-              },
-            ),
+        itemCount: posts.length,
+        itemBuilder: (context, index) {
+          return PostWidget(post: posts[index]);
+        },
+      ),
     );
   }
 }
