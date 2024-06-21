@@ -20,7 +20,7 @@ Follow these steps to get the app up and running on your local machine:
 
 1. **Clone the repository**
     ```sh
-    git clone https://github.com/yourusername/social_media_app.git
+    git clone https://github.com/gautamraj5488/Social-Media-App
     cd social_media_app
     ```
 
